@@ -4,16 +4,17 @@ import Sparkline from '../Sparkline.jsx'
 
 const HISTORY = 60
 const SENSORS = [
-  { key: 'temp', label: 'Température', unit: '°C', color: '#ff9e8a', digits: 1 },
-  { key: 'hum', label: 'Humidité', unit: '%', color: '#7fb4ff', digits: 0 },
-  { key: 'gas', label: 'Gaz / fumées', unit: 'ppm', color: '#f4d35e', digits: 0 },
-  { key: 'pir', label: 'Présence', unit: '', color: '#9be29b', digits: 0, min: 0, max: 1 },
+  { key: 'temp', label: 'Température', unit: '°C', color: 'var(--series-temp)', digits: 1 },
+  { key: 'hum', label: 'Humidité', unit: '%', color: 'var(--series-hum)', digits: 0 },
+  { key: 'gas', label: 'Gaz / fumées', unit: 'ppm', color: 'var(--series-gas)', digits: 0 },
+  { key: 'pir', label: 'Présence', unit: '', color: 'var(--series-presence)', digits: 0, min: 0, max: 1 },
 ]
 const TESTS = [
   { kind: 'heat', label: 'Surchauffe' },
   { kind: 'gas', label: 'Fuite de gaz' },
   { kind: 'intrusion', label: 'Intrusion' },
 ]
+const LEVELS = { critical: 'critique', warning: 'avertissement' }
 const time = (ts) => new Date(ts).toLocaleTimeString('fr-FR')
 
 export default function Supervision() {
@@ -56,11 +57,10 @@ export default function Supervision() {
   }
 
   return (
-    <main>
-      <header>
-        <h1>Fortex <span>supervision</span></h1>
-        <span className={online ? 'badge ok' : 'badge'}>{online ? 'Source simulée active' : 'En attente'}</span>
-      </header>
+    <div className="page">
+      <p role="status" className={online ? 'badge ok' : 'badge'}>
+        {online ? 'Source simulée active' : 'En attente de données'}
+      </p>
 
       <section className="grid">
         {SENSORS.map((s) => (
@@ -69,7 +69,7 @@ export default function Supervision() {
             <p className="value">
               {last ? last[s.key].toFixed(s.digits) : '–'} <small>{s.unit}</small>
             </p>
-            <Sparkline values={series[s.key]} color={s.color} min={s.min} max={s.max} />
+            <Sparkline label={`Courbe : ${s.label}`} values={series[s.key]} color={s.color} min={s.min} max={s.max} />
           </article>
         ))}
       </section>
@@ -78,17 +78,17 @@ export default function Supervision() {
         <article className="card">
           <h2>Commandes (actionneurs)</h2>
           <div className="row">
-            <button className={outputs.buzzer ? 'on' : ''} onClick={() => toggle('buzzer')}>
-              Buzzer {outputs.buzzer ? 'ON' : 'OFF'}
+            <button aria-pressed={outputs.buzzer} className={outputs.buzzer ? 'on' : ''} onClick={() => toggle('buzzer')}>
+              Buzzer : {outputs.buzzer ? 'activé' : 'désactivé'}
             </button>
-            <button className={outputs.led ? 'on' : ''} onClick={() => toggle('led')}>
-              LED {outputs.led ? 'ON' : 'OFF'}
+            <button aria-pressed={outputs.led} className={outputs.led ? 'on' : ''} onClick={() => toggle('led')}>
+              LED : {outputs.led ? 'activée' : 'désactivée'}
             </button>
           </div>
-          <ul className="list">
+          <ul className="list" aria-live="polite">
             {log.map((l) => (
               <li key={l.ts + l.cmd.actuator}>
-                {time(l.ts)} · {l.cmd.actuator} → {l.cmd.state ? 'ON' : 'OFF'}
+                {time(l.ts)} · {l.cmd.actuator} → {l.cmd.state ? 'activé' : 'désactivé'}
               </li>
             ))}
           </ul>
@@ -108,20 +108,20 @@ export default function Supervision() {
       </section>
 
       <section className="card">
-        <h2>Alertes</h2>
+        <h2 id="alertes">Alertes</h2>
         {alerts.length === 0 ? (
-          <p className="hint">Aucune alerte.</p>
+          <p className="hint" role="status">Aucune alerte.</p>
         ) : (
-          <ul className="list">
+          <ul className="list" aria-labelledby="alertes" aria-live="polite">
             {alerts.map((a, i) => (
               <li key={a.ts + a.kind + i} className={a.level}>
                 {time(a.ts)} · <b>{a.kind}</b> {a.value}
-                {a.unit} · {a.level}
+                {a.unit} · {LEVELS[a.level]}
               </li>
             ))}
           </ul>
         )}
       </section>
-    </main>
+    </div>
   )
 }

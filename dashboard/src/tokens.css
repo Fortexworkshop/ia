@@ -1,0 +1,97 @@
+/* Charte graphique : source unique des valeurs. Voir CHARTE_GRAPHIQUE.md. */
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #101418;
+  --surface: #1a2029;
+  --surface-2: #222a35;
+  --surface-3: #2a3340;
+  --line: rgba(255, 255, 255, 0.12);
+  --control-border: #6f7b8a; /* 3,8:1 sur --surface : contour des commandes (RGAA 3.3) */
+
+  /* Texte */
+  --text: #f2f0ea;
+  --text-muted: #9aa4b2;
+  --on-accent: #101418;
+
+  /* Accent unique */
+  --accent: #ff9e8a;
+
+  /* États */
+  --ok: #7ddc9a;
+  --warning: #f4d35e;
+  --critical: #ff6b6b;
+
+  /* Séries de données (une couleur par grandeur, toujours la même) */
+  --series-temp: #c9a0ff;
+  --series-hum: #7fb4ff;
+  --series-gas: #4fd1c5;
+  --series-presence: #e8e8e8;
+
+  /* Typographie */
+  --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --fs-xs: 0.8125rem;
+  --fs-sm: 0.875rem;
+  --fs-base: 0.9375rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.625rem;
+  --fs-value: 2.125rem;
+
+  /* Espacements (pas de 4 px) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-6: 24px;
+
+  /* Formes */
+  --radius-sm: 6px;
+  --radius: 14px;
+  --radius-pill: 999px;
+  --content-width: 1100px;
+}
+
+/* Thème clair : suit la préférence système, sauf choix explicite de l'utilisateur (data-theme). */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    color-scheme: light;
+    --bg: #f6f4ef;
+    --surface: #ffffff;
+    --surface-2: #f0eee8;
+    --surface-3: #e4e1d9;
+    --line: rgba(0, 0, 0, 0.14);
+    --control-border: #6b7280;
+    --text: #1b1f26;
+    --text-muted: #4b5563;
+    --on-accent: #ffffff;
+    --accent: #b8381f;
+    --ok: #17743a;
+    --warning: #8a6100;
+    --critical: #b42318;
+    --series-temp: #7c3aed;
+    --series-hum: #1d5fd1;
+    --series-gas: #0f766e;
+    --series-presence: #374151;
+  }
+}
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f6f4ef;
+  --surface: #ffffff;
+  --surface-2: #f0eee8;
+  --surface-3: #e4e1d9;
+  --line: rgba(0, 0, 0, 0.14);
+  --control-border: #6b7280;
+  --text: #1b1f26;
+  --text-muted: #4b5563;
+  --on-accent: #ffffff;
+  --accent: #b8381f;
+  --ok: #17743a;
+  --warning: #8a6100;
+  --critical: #b42318;
+  --series-temp: #7c3aed;
+  --series-hum: #1d5fd1;
+  --series-gas: #0f766e;
+  --series-presence: #374151;
+}
