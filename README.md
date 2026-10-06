@@ -17,6 +17,19 @@ Contenu :
    et registre de presence (SQLite). Ce code est utilise par la plateforme web et par la liste
    blanche de la vision.
 
+### Tout lancer en une commande (PC Serveur Local, Windows)
+
+Placer les depots `infra` et `dev` a cote de ce depot, ou dans un dossier `fortex/` a cote.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1                     # une seule fois
+powershell -ExecutionPolicy Bypass -File scripts\start.ps1 -FakeEsp -Incident 60
+```
+
+`start.ps1` demarre Docker (infra), puis ouvre une fenetre par brique : maintenance predictive,
+vision, dashboard et, avec `-FakeEsp`, un faux ESP8266. `-Admin` lance la plateforme eleves a la
+place de la vision (une seule webcam). `-DryRun` affiche les commandes sans rien lancer.
+
 ### Branchement avec les autres depots
 
 - **infra** : `docker compose up -d` dans le depot infra, puis `sentinel_anomaly.py` ecoute
