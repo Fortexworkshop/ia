@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sentinel-X · Élèves</title>
+<style>
+  :root {
+    --bg: #f4f6f9; --panel: #ffffff; --text: #18202b; --muted: #5d6877; --line: #dde2ea;
+    --accent: #1f5fd1; --ok: #138a3e; --ok-bg: #e5f5eb; --bad: #c62828; --bad-bg: #fdecec; --warn: #b85c00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10141b; --panel: #181e28; --text: #e6eaf0; --muted: #98a3b3; --line: #2a3342;
+      --accent: #5b8ff0; --ok: #4cc27a; --ok-bg: #16301f; --bad: #f06b6b; --bad-bg: #351b1b; --warn: #f0a050;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 18px 24px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { margin: 0; font-size: 19px; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  main { display: grid; grid-template-columns: 340px 1fr; gap: 20px; padding: 20px 24px; max-width: 1300px; margin: 0 auto; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; padding: 16px; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input[type=text] { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
+  button { font: inherit; border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer; background: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: wait; }
+  button.link { background: none; color: var(--bad); padding: 2px 6px; font-size: 13px; }
+  .drop { border: 2px dashed var(--line); border-radius: 8px; padding: 18px; text-align: center; color: var(--muted); cursor: pointer; transition: border-color .15s; }
+  .drop.over, .drop:hover { border-color: var(--accent); color: var(--text); }
+  .drop input { display: none; }
+  .thumbs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .thumbs img { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
+  .stack { display: flex; flex-direction: column; gap: 20px; }
+  ul.students { list-style: none; margin: 0; padding: 0; }
+  ul.students li { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  ul.students li:last-child { border-bottom: 0; }
+  .empty { color: var(--muted); font-size: 14px; }
+  .msg { margin-top: 10px; padding: 8px 10px; border-radius: 6px; font-size: 14px; display: none; }
+  .msg.ok { display: block; background: var(--ok-bg); color: var(--ok); }
+  .msg.bad { display: block; background: var(--bad-bg); color: var(--bad); }
+  .msg ul { margin: 4px 0 0; padding-left: 18px; }
+  .result { display: grid; grid-template-columns: 1fr 260px; gap: 16px; margin-top: 16px; }
+  @media (max-width: 1100px) { .result { grid-template-columns: 1fr; } }
+  .result img { width: 100%; border-radius: 8px; border: 1px solid var(--line); background: #000; }
+  .verdict { font-size: 18px; font-weight: 600; padding: 10px 12px; border-radius: 8px; margin-bottom: 10px; }
+  .verdict.ok { background: var(--ok-bg); color: var(--ok); }
+  .verdict.bad { background: var(--bad-bg); color: var(--bad); }
+  .verdict.none { background: var(--bg); color: var(--muted); }
+  .facts div { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .facts .name-ok { color: var(--ok); font-weight: 600; }
+  .facts .name-unknown { color: var(--warn); font-weight: 600; }
+  .note { font-size: 12px; color: var(--muted); margin-top: 14px; }
+  .hidden { display: none !important; }
+  .legend { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+  @media (max-width: 600px) { .legend { grid-template-columns: 1fr; } }
+  .legend div { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; }
+  .legend .big { font-size: 26px; line-height: 1.2; }
+  .legend span:last-child { color: var(--muted); font-size: 13px; }
+  .cam { position: relative; background: #000; border-radius: 8px; overflow: hidden; aspect-ratio: 4 / 3; max-width: 640px; display: grid; place-items: center; color: #9aa4b2; }
+  .cam > * { grid-area: 1 / 1; }
+  .cam video, .cam img { width: 100%; height: 100%; object-fit: contain; }
+  .cam video { transform: scaleX(-1); }
+  .countdown { grid-area: 1 / 1; font-size: 90px; font-weight: 700; color: #fff; text-shadow: 0 2px 12px #000; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+  button.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--line); }
+  .filebtn { margin: 0; color: var(--accent); cursor: pointer; font-size: 14px; }
+  .filebtn input { display: none; }
+  .day-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .day-row h2 { margin: 0; }
+  input[type=date] { padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
+  .day-row a { color: var(--accent); font-size: 14px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .badge { padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .badge.present { background: var(--ok-bg); color: var(--ok); }
+  .badge.en_pause { background: #fff1e0; color: var(--warn); }
+  .badge.parti { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+  @media (prefers-color-scheme: dark) { .badge.en_pause { background: #3a2a14; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Sentinel-X · Gestion des élèves</h1>
+  <p>Enregistrer un élève, pointer son arrivée, ses pauses et sa sortie par un geste du pouce, et tester une image.</p>
+</header>
+
+<main>
+  <div class="stack">
+    <section>
+      <h2>Enregistrer un élève</h2>
+      <form id="enroll-form">
+        <label for="name">Nom de l'élève</label>
+        <input id="name" type="text" maxlength="60" placeholder="ex : Alice Martin" required>
+        <label>Photos du visage (1 à 10, de face, bien éclairées)</label>
+        <div class="drop" id="enroll-drop">
+          <input id="enroll-files" type="file" accept="image/*" multiple>
+          Clique ou dépose des photos ici
+        </div>
+        <div class="thumbs" id="enroll-thumbs"></div>
+        <p style="margin:12px 0 0"><button id="enroll-btn" type="submit">Enregistrer</button></p>
+      </form>
+      <div class="msg" id="enroll-msg"></div>
+    </section>
+
+    <section>
+      <h2>Élèves enregistrés <span id="count" class="empty"></span></h2>
+      <ul class="students" id="students"></ul>
+    </section>
+  </div>
+
+  <div class="stack">
+  <section>
+    <h2>Pointage par geste</h2>
+    <div class="legend">
+      <div><span class="big">👍</span><b>Pouce en haut</b><span>Heure d'arrivée</span></div>
+      <div><span class="big">👉</span><b>Pouce sur le côté</b><span>Pause : 1er geste = départ, 2e = retour</span></div>
+      <div><span class="big">👎</span><b>Pouce en bas</b><span>Heure de sortie (fin)</span></div>
+    </div>
+    <div class="cam" id="cam-box">
+      <span id="cam-placeholder">Webcam éteinte</span>
+      <video id="cam" autoplay playsinline muted class="hidden"></video>
+      <img id="checkin-img" class="hidden" alt="Pointage analysé">
+      <span class="countdown hidden" id="countdown"></span>
+    </div>
+    <div class="actions">
+      <button id="cam-btn" type="button" class="secondary">Activer la webcam</button>
+      <button id="snap-btn" type="button" disabled>Pointer</button>
+      <label class="filebtn">ou envoyer une photo<input id="checkin-file" type="file" accept="image/*"></label>
+    </div>
+    <p class="note" style="margin-top:8px">Clique sur « Pointer », fais ton geste face à la caméra : la photo est prise après 3 secondes.
+      Poing fermé, seul le pouce tendu.</p>
+    <div class="msg" id="checkin-msg"></div>
+  </section>
+
+  <section>
+    <div class="day-row">
+      <h2>Feuille de présence</h2>
+      <div><input type="date" id="day"> <a id="csv-link" href="#">Exporter CSV</a></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Élève</th><th>Arrivée</th><th>Pauses</th><th>Temps de pause</th><th>Sortie</th><th>Temps présent</th><th>Statut</th></tr></thead>
+        <tbody id="attendance"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Tester une image</h2>
+    <div class="drop" id="test-drop">
+      <input id="test-file" type="file" accept="image/*">
+      <span id="test-label">Clique ou dépose une photo d'élève (ou de la salle) pour voir qui est reconnu</span>
+    </div>
+    <div class="msg" id="test-msg"></div>
+    <div class="result hidden" id="result">
+      <img id="result-img" alt="Image analysée">
+      <div>
+        <div class="verdict" id="verdict"></div>
+        <div class="facts" id="facts"></div>
+      </div>
+    </div>
+    <p class="note">Traitement 100 % local : les photos ne sont pas conservées, seules les empreintes faciales
+      (128 nombres par élève) sont stockées dans <code>data/faces.npz</code>. Données biométriques (RGPD art. 9) :
+      volontaires majeurs et informés uniquement, suppression possible à tout moment.</p>
+  </section>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function showMsg(el, ok, html) {
+  el.className = "msg " + (ok ? "ok" : "bad");
+  el.innerHTML = html;
+}
+
+function setupDrop(drop, input, onFiles) {
+  drop.addEventListener("click", (e) => { if (e.target !== input) input.click(); });
+  input.addEventListener("change", () => onFiles(input.files));
+  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+  drop.addEventListener("drop", (e) => {
+    e.preventDefault(); drop.classList.remove("over");
+    input.files = e.dataTransfer.files; onFiles(input.files);
+  });
+}
+
+async function api(url, options) {
+  const res = await fetch(url, options);
+  const body = res.status === 204 ? null : await res.json().catch(() => ({ error: "Réponse invalide du serveur" }));
+  return { ok: res.ok, status: res.status, body };
+}
+
+// --- élèves --------------------------------------------------------------
+async function loadStudents() {
+  const { body } = await api("/api/students");
+  $("count").textContent = `(${body.length})`;
+  $("students").innerHTML = body.length
+    ? body.map((n) => `<li><span>${esc(n)}</span><button class="link" data-name="${esc(n)}">Supprimer</button></li>`).join("")
+    : `<li class="empty">Aucun élève pour l'instant.</li>`;
+}
+
+$("students").addEventListener("click", async (e) => {
+  const name = e.target.dataset.name;
+  if (!name || !confirm(`Supprimer ${name} et son empreinte faciale ?`)) return;
+  await api("/api/students/" + encodeURIComponent(name), { method: "DELETE" });
+  loadStudents();
+});
+
+setupDrop($("enroll-drop"), $("enroll-files"), (files) => {
+  $("enroll-thumbs").innerHTML = "";
+  [...files].slice(0, 10).forEach((f) => {
+    const img = document.createElement("img");
+    img.src = URL.createObjectURL(f);
+    $("enroll-thumbs").appendChild(img);
+  });
+});
+
+$("enroll-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const files = [...$("enroll-files").files].slice(0, 10);
+  if (!files.length) return showMsg($("enroll-msg"), false, "Ajoute au moins une photo.");
+  const form = new FormData();
+  form.append("name", $("name").value);
+  files.forEach((f) => form.append("photos", f));
+  $("enroll-btn").disabled = true;
+  $("enroll-btn").textContent = "Analyse en cours…";
+  try {
+    const { ok, body } = await api("/api/students", { method: "POST", body: form });
+    if (body.error) return showMsg($("enroll-msg"), false, esc(body.error));
+    const details = body.files.map((f) => `<li>${esc(f.file)} : ${f.ok ? "visage utilisé" : esc(f.reason)}</li>`).join("");
+    showMsg($("enroll-msg"), ok,
+      (ok ? `<b>${esc(body.name)}</b> enregistré à partir de ${body.used} photo(s).` : "Aucun visage exploitable, élève non enregistré.")
+      + `<ul>${details}</ul>`);
+    if (ok) {
+      $("enroll-form").reset();
+      $("enroll-thumbs").innerHTML = "";
+      loadStudents();
+    }
+  } catch (err) {
+    showMsg($("enroll-msg"), false, "Serveur injoignable.");
+  } finally {
+    $("enroll-btn").disabled = false;
+    $("enroll-btn").textContent = "Enregistrer";
+  }
+});
+
+// --- test d'une image ----------------------------------------------------
+setupDrop($("test-drop"), $("test-file"), async (files) => {
+  if (!files.length) return;
+  const form = new FormData();
+  form.append("image", files[0]);
+  $("test-msg").className = "msg";
+  $("test-label").textContent = "Analyse en cours…";
+  try {
+    const { body } = await api("/api/analyze", { method: "POST", body: form });
+    if (body.error) {
+      $("result").classList.add("hidden");
+      return showMsg($("test-msg"), false, esc(body.error));
+    }
+    renderResult(body);
+  } catch (err) {
+    showMsg($("test-msg"), false, "Serveur injoignable.");
+  } finally {
+    $("test-label").textContent = "Clique ou dépose une autre photo";
+    $("test-file").value = "";
+  }
+});
+
+function renderResult(r) {
+  $("result").classList.remove("hidden");
+  $("result-img").src = r.image;
+  const known = r.faces.filter((f) => f.name);
+  const verdict = $("verdict");
+  if (!r.persons.length && !r.faces.length) {
+    verdict.className = "verdict none";
+    verdict.textContent = "Aucune personne détectée";
+  } else if (r.intruders > 0 || (!r.persons.length && known.length < r.faces.length)) {
+    verdict.className = "verdict bad";
+    verdict.textContent = r.intruders > 0 ? `${r.intruders} intrus détecté(s)` : "Visage inconnu";
+  } else {
+    verdict.className = "verdict ok";
+    verdict.textContent = known.length === 1 ? `Élève reconnu : ${known[0].name}` : `${known.length} élèves reconnus`;
+  }
+  const rows = [
+    ["Personnes (YOLO)", r.persons.length],
+    ["Visages détectés", r.faces.length],
+    ...r.faces.map((f, i) => [
+      `Visage ${i + 1}`,
+      f.name ? `<span class="name-ok">${esc(f.name)}</span> · ${f.score.toFixed(2)}`
+             : `<span class="name-unknown">Inconnu</span> · ${f.score.toFixed(2)}`,
+    ]),
+  ];
+  $("facts").innerHTML = rows.map(([k, v]) => `<div><span>${k}</span><span>${v}</span></div>`).join("")
+    + `<p class="note">Score = similarité cosinus avec l'élève le plus proche. Reconnu à partir de 0,36.</p>`;
+}
+
+// --- pointage -------------------------------------------------------------
+const STATUS = { present: "Présent", en_pause: "En pause", parti: "Parti", absent: "Absent" };
+let stream = null;
+
+$("cam-btn").addEventListener("click", async () => {
+  if (stream) {
+    stream.getTracks().forEach((t) => t.stop());
+    stream = null;
+    $("cam").classList.add("hidden");
+    $("cam-placeholder").classList.remove("hidden");
+    $("cam-btn").textContent = "Activer la webcam";
+    $("snap-btn").disabled = true;
+    return;
+  }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+  } catch (err) {
+    return showMsg($("checkin-msg"), false, "Webcam inaccessible : autorise la caméra dans le navigateur, ou envoie une photo.");
+  }
+  $("cam").srcObject = stream;
+  $("cam").classList.remove("hidden");
+  $("checkin-img").classList.add("hidden");
+  $("cam-placeholder").classList.add("hidden");
+  $("cam-btn").textContent = "Couper la webcam";
+  $("snap-btn").disabled = false;
+});
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+$("snap-btn").addEventListener("click", async () => {
+  $("snap-btn").disabled = true;
+  $("checkin-img").classList.add("hidden");
+  $("cam").classList.remove("hidden");
+  const cd = $("countdown");
+  cd.classList.remove("hidden");
+  for (const n of [3, 2, 1]) { cd.textContent = n; await sleep(1000); }
+  cd.classList.add("hidden");
+  const video = $("cam");
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  const ctx = canvas.getContext("2d");
+  ctx.translate(canvas.width, 0); ctx.scale(-1, 1);  // même sens que l'aperçu (miroir)
+  ctx.drawImage(video, 0, 0);
+  const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.9));
+  await sendCheckin(blob);
+  $("snap-btn").disabled = false;
+});
+
+$("checkin-file").addEventListener("change", async () => {
+  const file = $("checkin-file").files[0];
+  if (file) await sendCheckin(file);
+  $("checkin-file").value = "";
+});
+
+async function sendCheckin(blob) {
+  const form = new FormData();
+  form.append("image", blob, "pointage.jpg");
+  showMsg($("checkin-msg"), true, "Analyse en cours…");
+  try {
+    const { body } = await api("/api/checkin", { method: "POST", body: form });
+    if (body.error) return showMsg($("checkin-msg"), false, esc(body.error));
+    $("checkin-img").src = body.image;
+    $("checkin-img").classList.remove("hidden");
+    $("cam").classList.add("hidden");
+    $("cam-placeholder").classList.add("hidden");
+    showMsg($("checkin-msg"), body.accepted, esc(body.message));
+    if (body.accepted) loadAttendance();
+    if (stream) setTimeout(() => {
+      $("checkin-img").classList.add("hidden");
+      $("cam").classList.remove("hidden");
+    }, 4000);
+  } catch (err) {
+    showMsg($("checkin-msg"), false, "Serveur injoignable.");
+  }
+}
+
+const minutes = (m) => (m === null || m === undefined ? "–" : m < 60 ? `${Math.round(m)} min` : `${Math.floor(m / 60)} h ${String(Math.round(m % 60)).padStart(2, "0")}`);
+const hhmm = (t) => (t ? t.slice(0, 5) : "–");
+
+async function loadAttendance() {
+  const day = $("day").value;
+  $("csv-link").href = "/api/attendance.csv?day=" + day;
+  const { body } = await api("/api/attendance?day=" + day);
+  if (body.error) return;
+  $("attendance").innerHTML = body.students.length
+    ? body.students.map((r) => {
+        const detail = r.events.map((e) => `${e.time.slice(0, 5)} ${e.event}`).join(" · ");
+        return `<tr title="${esc(detail)}">
+          <td><b>${esc(r.student)}</b></td>
+          <td class="num">${hhmm(r.arrival)}</td>
+          <td class="num">${r.pauses}</td>
+          <td class="num">${r.pauses ? minutes(r.pause_minutes) : "–"}</td>
+          <td class="num">${hhmm(r.departure)}</td>
+          <td class="num">${minutes(r.presence_minutes)}</td>
+          <td><span class="badge ${r.status}">${STATUS[r.status] || r.status}</span></td></tr>`;
+      }).join("")
+    : `<tr><td colspan="7" class="empty">Aucun pointage ce jour-là.</td></tr>`;
+}
+
+const today = new Date();
+$("day").value = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+$("day").addEventListener("change", loadAttendance);
+
+loadStudents();
+loadAttendance();
+</script>
+</body>
+</html>
