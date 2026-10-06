@@ -23,5 +23,16 @@ services:
       - fortex-postgres-data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d
 
+  simulator:
+    build:
+      context: ./simulator
+    container_name: fortex-simulator
+    restart: unless-stopped
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_TOPIC: fortex/capteurs/mesures
+    depends_on:
+      - mosquitto
 volumes:
   fortex-postgres-data:
