@@ -1,0 +1,14 @@
+models/*.onnx
+models/*.task
+data/
+__pycache__/
+*.pyc
+models/*.pt
+models/*.joblib
+.venv/
+.env
+*.pem
+*.key
+*.crt
+.pytest_cache/
+.vscode/
