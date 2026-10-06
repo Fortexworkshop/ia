@@ -126,6 +126,7 @@ python scripts/sentinel_train.py                     # entraine et evalue le mod
 python scripts/mock_api.py                           # terminal 1 : fausse API qui affiche les alertes
 $env:SENTINEL_API_URL="http://localhost:8000"        # terminal 2 :
 python scripts/sentinel_anomaly.py --simulate        #   incident simule -> alerte ENV_ANOMALY
+python scripts/fake_esp.py --incident 60             #   faux ESP8266 -> Mosquitto (avec sentinel_anomaly.py lance)
 python scripts/sentinel_vision.py                    #   webcam -> alerte INTRUSION (Q pour quitter)
 ```
 
