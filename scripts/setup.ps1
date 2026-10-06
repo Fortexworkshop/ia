@@ -56,7 +56,7 @@ $dashboard = @((Join-Path $parent "dev\dashboard"), (Join-Path $parent "fortex\d
 if ($dashboard) {
     Step "Dashboard ($dashboard)"
     if (-not (Test-Path (Join-Path $dashboard ".env"))) {
-        "VITE_API_URL=`nVITE_CAMERA_URL=http://localhost:8081/video" | Set-Content -Encoding ascii (Join-Path $dashboard ".env")
+        "VITE_API_URL=http://localhost:8080`nVITE_CAMERA_URL=http://localhost:8081/video" | Set-Content -Encoding ascii (Join-Path $dashboard ".env")
         Write-Host ".env du dashboard cree (camera : http://localhost:8081/video)"
     }
     if (-not (Test-Path (Join-Path $dashboard "node_modules"))) {

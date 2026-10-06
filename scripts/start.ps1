@@ -61,7 +61,11 @@ if (Test-Path (Join-Path $Infra "docker-compose.yml")) {
     Write-Host "[infra] introuvable ($Infra) : Mosquitto doit deja tourner" -ForegroundColor Yellow
 }
 
-# 2. IA
+# 2. Backend (MQTT -> PostgreSQL + API REST/WebSocket pour le dashboard)
+Launch "Backend FORTEX" $root "$py scripts/backend.py"
+if (-not $DryRun) { Start-Sleep -Seconds 4 }
+
+# 3. IA
 Launch "IA - maintenance predictive" $root "$py scripts/sentinel_anomaly.py"
 if ($FakeEsp) {
     $opt = if ($Incident -ge 0) { " --incident $Incident" } else { "" }
@@ -73,7 +77,7 @@ if ($Admin) {
     Launch "IA - vision" $root "$py scripts/sentinel_vision.py --whitelist"
 }
 
-# 3. Dashboard
+# 4. Dashboard
 if (Test-Path (Join-Path $Dashboard "package.json")) {
     $runner = if (Get-Command pnpm -ErrorAction SilentlyContinue) { "pnpm" } else { "npm" }
     Launch "Dashboard" $Dashboard "$runner run dev"
@@ -82,4 +86,5 @@ if (Test-Path (Join-Path $Dashboard "package.json")) {
 }
 
 Write-Host "`nDashboard : http://localhost:5173   Flux camera : http://localhost:8081/video" -ForegroundColor Green
+Write-Host "API backend : http://localhost:8080/docs" -ForegroundColor Green
 if ($Admin) { Write-Host "Plateforme eleves : http://localhost:5000" -ForegroundColor Green }

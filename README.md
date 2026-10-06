@@ -17,6 +17,41 @@ Contenu :
    et registre de presence (SQLite). Ce code est utilise par la plateforme web et par la liste
    blanche de la vision.
 
+### Backend (`backend/`, `scripts/backend.py`)
+
+Le backend relie toutes les briques. Il tourne sur le PC serveur, sur le port 8080.
+
+```
+ESP8266 ──MQTT sentinel/<id>/sensors──► backend ──► PostgreSQL (tables du depot infra)
+IA ──POST /api/v1/alerts (Bearer)────►    │    ──► WebSocket /ws ──► dashboard
+dashboard ──POST /api/v1/commands──►      └──► MQTT sentinel/<id>/commands ──► ESP8266 (buzzer, LED)
+```
+
+| Route | Role |
+|---|---|
+| `GET /health` | Etat : base, MQTT, age de la derniere mesure |
+| `POST /api/v1/alerts` | Recoit une alerte (jeton `SENTINEL_API_TOKEN`) |
+| `GET /api/v1/alerts`, `POST /api/v1/alerts/{id}/ack` | Historique des alertes, acquittement |
+| `GET /api/v1/readings` | Dernieres mesures des capteurs |
+| `GET /api/v1/devices` | Statut des boitiers (table `statut_boitier`) |
+| `POST /api/v1/commands` | `{"actuator": "buzzer"\|"led", "state": true}` publie sur MQTT |
+| `POST /api/v1/test/{heat\|gas\|intrusion}` | Alerte de test (plateforme de test du dashboard) |
+| `WS /ws` | Temps reel, au format du dashboard : `reading`, `alert`, `command-ack` |
+
+Documentation interactive de l'API : http://localhost:8080/docs.
+
+- **Base de donnees** : le nom, l'utilisateur et le mot de passe sont lus dans le `.env` du depot
+  infra. Le conteneur PostgreSQL doit etre publie sur la machine. En local, ajouter un fichier
+  `docker-compose.override.yml` dans `infra/` avec `ports: ["127.0.0.1:5433:5432"]`. Si la base est
+  injoignable, le backend continue de tourner, avec un stockage en memoire.
+- **Seuils durs** : en plus de l'IA predictive, le backend leve une alerte a 40 °C ou a un niveau
+  de gaz de 600. Il en leve une aussi au front montant du capteur PIR.
+- **Dashboard** : `VITE_API_URL=http://localhost:8080` dans le `.env` du dashboard. Le client
+  `src/data/api.js` respecte le meme contrat que le simulateur.
+- **Firmware ESP8266** : publier `{"temperature", "humidity", "gas", "pir"}` sur
+  `sentinel/<node_id>/sensors`, et s'abonner a `sentinel/<node_id>/commands` pour le buzzer et les
+  LEDs.
+
 ### Tout lancer en une commande (PC Serveur Local, Windows)
 
 Placer les depots `infra` et `dev` a cote de ce depot, ou dans un dossier `fortex/` a cote.
