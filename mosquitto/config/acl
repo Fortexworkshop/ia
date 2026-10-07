@@ -1,0 +1,14 @@
+# Droits par compte : le boitier ne peut qu'envoyer ses mesures et lire ses commandes,
+# le serveur (backend + IA) l'inverse. Un compte vole ne permet pas de tout faire.
+
+user esp8266
+topic write sentinel/+/sensors
+topic write sentinel/+/status
+topic read sentinel/+/commands
+topic write fortex/capteurs/mesures
+
+user serveur
+topic read sentinel/+/sensors
+topic read sentinel/+/status
+topic write sentinel/+/commands
+topic read fortex/capteurs/mesures

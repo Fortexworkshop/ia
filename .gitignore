@@ -31,3 +31,9 @@ docker-data/
 # Mosquitto local data
 mosquitto/data/
 mosquitto/log/
+
+# Secrets MQTT / TLS generes localement
+certs/
+mqtt-users.env
+mosquitto/config/passwd
+docker-compose.override.yml

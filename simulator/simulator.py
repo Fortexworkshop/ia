@@ -9,12 +9,20 @@ import paho.mqtt.client as mqtt
 MQTT_HOST = os.getenv("MQTT_HOST", "mosquitto")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_TOPIC = os.getenv("MQTT_TOPIC", "fortex/capteurs/mesures")
+MQTT_USER = os.getenv("MQTT_USER")
+MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
+MQTT_CA_CERT = os.getenv("MQTT_CA_CERT")  # defini = MQTTS
 
 
 client = mqtt.Client(
     mqtt.CallbackAPIVersion.VERSION2,
     client_id="fortex-simulator",
 )
+
+if MQTT_USER:
+    client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
+if MQTT_CA_CERT:
+    client.tls_set(ca_certs=MQTT_CA_CERT)
 
 client.connect(MQTT_HOST, MQTT_PORT, 60)
 client.loop_start()
