@@ -28,7 +28,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocke
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from .messages import ThresholdWatcher, alert_message, now_ms, parse_sensor_payload, reading_message
+from .messages import SafetyAlarm, alert_message, now_ms, parse_sensor_payload, reading_message
 
 
 class AlertIn(BaseModel):
@@ -78,7 +78,7 @@ class Hub:
 class Service:
     """Logique metier, independante du transport (MQTT, HTTP)."""
 
-    def __init__(self, store, hub: Hub, watcher: ThresholdWatcher, publish=None, node_id: str = ""):
+    def __init__(self, store, hub: Hub, watcher: SafetyAlarm | None, publish=None, node_id: str = ""):
         self.store = store
         self.hub = hub
         self.watcher = watcher
@@ -96,7 +96,7 @@ class Service:
             self.store.touch_status(node, payload.get("ip"))
             self.last_reading_at = time.time()
         self.hub.broadcast(reading_message(reading, when))
-        for alert in self.watcher.check(node, reading):
+        for alert in (self.watcher.check(node, reading) if self.watcher else []):
             self.ingest_alert(alert)
         return True
 

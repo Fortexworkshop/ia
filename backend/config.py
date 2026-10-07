@@ -60,6 +60,7 @@ API_TOKEN = sentinel_config.API_TOKEN
 CORS_ORIGINS = [o.strip() for o in os.environ.get(
     "FORTEX_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()]
 
-# Seuils de securite "durs" (en plus de la detection predictive de l'IA)
+# Garde-fou de dernier recours (backend/messages.py:SafetyAlarm), distinct de l'IA predictive
+SAFETY_ALARMS = os.environ.get("FORTEX_SAFETY_ALARMS", "1") != "0"
 CRITICAL_TEMP = float(os.environ.get("FORTEX_CRITICAL_TEMP", "40"))
 CRITICAL_GAS = float(os.environ.get("FORTEX_CRITICAL_GAS", "600"))

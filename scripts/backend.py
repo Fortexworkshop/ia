@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from backend import config  # noqa: E402
 from backend.app import Hub, Service, create_app  # noqa: E402
-from backend.messages import ThresholdWatcher  # noqa: E402
+from backend.messages import SafetyAlarm  # noqa: E402
 from backend.mqtt_bridge import MqttBridge  # noqa: E402
 from backend.store import MemoryStore, PostgresStore  # noqa: E402
 
@@ -46,7 +46,8 @@ def main() -> None:
 
     import uvicorn
 
-    service = Service(make_store(args.memory), Hub(), ThresholdWatcher(config.CRITICAL_TEMP, config.CRITICAL_GAS),
+    safety = SafetyAlarm(config.CRITICAL_TEMP, config.CRITICAL_GAS) if config.SAFETY_ALARMS else None
+    service = Service(make_store(args.memory), Hub(), safety,
                       node_id=config.NODE_ID)
     bridge = MqttBridge(service, config.MQTT_HOST, config.MQTT_PORT, config.SENSORS_TOPIC,
                         config.MQTT_USER, config.MQTT_PASSWORD, config.MQTT_CA_CERT)

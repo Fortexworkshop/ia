@@ -86,8 +86,14 @@ def alert_message(alert: dict) -> dict:
     }
 
 
-class ThresholdWatcher:
-    """Alertes de seuil dur (temperature, gaz) et de presence PIR, avec delai anti-repetition."""
+class SafetyAlarm:
+    """Garde-fou de dernier recours, independant de l'IA (source "garde-fou").
+
+    Ce n'est PAS la maintenance predictive : celle-ci est faite par l'Isolation Forest de
+    sentinel/anomaly.py, sans aucun seuil statique, et alerte AVANT l'incident. Ici, on leve une
+    alarme quand le seuil critique est DEJA atteint (ou au front montant du PIR), pour que la
+    centrale reste protegee meme si le service d'IA est arrete. Desactivable : FORTEX_SAFETY_ALARMS=0.
+    """
 
     def __init__(self, critical_temp: float, critical_gas: float, cooldown_s: float = 30.0):
         self.critical_temp = critical_temp
@@ -121,7 +127,7 @@ class ThresholdWatcher:
     @staticmethod
     def _alert(node, alert_type, severity, message, value, unit) -> dict:
         return {
-            "node_id": node, "source": "capteurs", "type": alert_type, "severity": severity,
+            "node_id": node, "source": "garde-fou", "type": alert_type, "severity": severity,
             "message": message, "timestamp": datetime.now().astimezone().isoformat(timespec="seconds"),
             "data": {"value": round(float(value), 1), "unit": unit},
         }

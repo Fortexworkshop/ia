@@ -44,8 +44,11 @@ Documentation interactive de l'API : http://localhost:8080/docs.
   infra. Le conteneur PostgreSQL doit etre publie sur la machine. En local, ajouter un fichier
   `docker-compose.override.yml` dans `infra/` avec `ports: ["127.0.0.1:5433:5432"]`. Si la base est
   injoignable, le backend continue de tourner, avec un stockage en memoire.
-- **Seuils durs** : en plus de l'IA predictive, le backend leve une alerte a 40 °C ou a un niveau
-  de gaz de 600. Il en leve une aussi au front montant du capteur PIR.
+- **Garde-fou de dernier recours** (`SafetyAlarm`, source `garde-fou`) : ce n'est **pas** la
+  maintenance predictive. L'IA (Isolation Forest, sans seuil statique) alerte *avant* l'incident.
+  Le garde-fou, lui, sonne quand le seuil critique est *deja* atteint (40 °C, gaz 600, mouvement
+  PIR), pour que le site reste protege meme si l'IA est arretee. Desactivable avec
+  `FORTEX_SAFETY_ALARMS=0`.
 - **Dashboard** : `VITE_API_URL=http://localhost:8080` dans le `.env` du dashboard. Le client
   `src/data/api.js` respecte le meme contrat que le simulateur.
 - **Firmware ESP8266** : publier `{"temperature", "humidity", "gas", "pir"}` sur

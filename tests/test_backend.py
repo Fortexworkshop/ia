@@ -5,7 +5,7 @@ pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
 from backend.app import CommandIn, Hub, Service, create_app  # noqa: E402
-from backend.messages import ThresholdWatcher, alert_message, parse_sensor_payload  # noqa: E402
+from backend.messages import SafetyAlarm, alert_message, parse_sensor_payload  # noqa: E402
 from backend.store import MemoryStore  # noqa: E402
 
 INTRUSION = {"node_id": "SX-01", "source": "vision", "type": "INTRUSION", "severity": "critical",
@@ -13,7 +13,7 @@ INTRUSION = {"node_id": "SX-01", "source": "vision", "type": "INTRUSION", "sever
 
 
 def make(token="", publish=None):
-    service = Service(MemoryStore(), Hub(), ThresholdWatcher(40, 600), publish=publish, node_id="SX-01")
+    service = Service(MemoryStore(), Hub(), SafetyAlarm(40, 600), publish=publish, node_id="SX-01")
     return service, create_app(service, api_token=token)
 
 
@@ -33,8 +33,8 @@ def test_alert_message_matches_dashboard_contract():
     assert anomaly["kind"] == "anomalie" and anomaly["value"] == 31.2 and anomaly["unit"] == "°C"
 
 
-def test_threshold_watcher_cooldown_and_pir_edge():
-    watcher = ThresholdWatcher(40, 600, cooldown_s=30)
+def test_safety_alarm_cooldown_and_pir_edge():
+    watcher = SafetyAlarm(40, 600, cooldown_s=30)
     hot = {"temperature": 41, "humidity": 40, "gas": 300, "pir": 0}
     assert [a["type"] for a in watcher.check("n", hot, now=0)] == ["TEMPERATURE"]
     assert watcher.check("n", hot, now=10) == []          # delai anti-repetition
@@ -103,3 +103,9 @@ def test_health_and_unknown_test():
     client = TestClient(app)
     assert client.get("/health").json()["database"] == "memoire"
     assert client.post("/api/v1/test/volcan").status_code == 404
+
+
+def test_safety_alarm_can_be_disabled():
+    service = Service(MemoryStore(), Hub(), None, node_id="SX-01")
+    service.ingest_reading("SX-01", {"temperature": 90, "humidity": 40, "gas": 900, "pir": 1})
+    assert service.store.recent_alerts(10) == []
