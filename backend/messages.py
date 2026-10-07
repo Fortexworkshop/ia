@@ -57,6 +57,8 @@ def alert_message(alert: dict) -> dict:
         value, unit = (data.get("reading") or {}).get("temperature", ""), "°C"
     elif "value" in data:
         value, unit = data["value"], data.get("unit", "")
+    if value in ("", None):
+        value, unit = "", ""  # alerte relue en base : pas de valeur, pas d'unite orpheline
     return {
         "type": "alert",
         "id": alert.get("id"),

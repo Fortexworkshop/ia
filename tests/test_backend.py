@@ -109,3 +109,7 @@ def test_safety_alarm_can_be_disabled():
     service = Service(MemoryStore(), Hub(), None, node_id="SX-01")
     service.ingest_reading("SX-01", {"temperature": 90, "humidity": 40, "gas": 900, "pir": 1})
     assert service.store.recent_alerts(10) == []
+
+
+def test_alert_without_value_has_no_unit():
+    assert alert_message({"type": "ENV_ANOMALY", "data": {}})["unit"] == ""
