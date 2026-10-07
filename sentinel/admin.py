@@ -1,9 +1,9 @@
-"""Plateforme web locale : enregistrer des eleves (liste blanche) et tester une image.
+"""Plateforme web locale : enregistrer des agents (liste blanche) et tester une image.
 
 GET    /                       page web
-GET    /api/students           eleves enregistres
-POST   /api/students           enregistre un eleve (champ "name" + fichiers "photos")
-DELETE /api/students/<nom>     supprime un eleve (droit a l'effacement RGPD)
+GET    /api/agents           agents enregistres
+POST   /api/agents           enregistre un agent (champ "name" + fichiers "photos")
+DELETE /api/agents/<nom>     supprime un agent (droit a l'effacement RGPD)
 POST   /api/analyze            analyse une image (fichier "image") : personnes, visages reconnus, image annotee
 POST   /api/checkin            pointage (fichier "image") : visage + geste du pouce -> heure enregistree
 GET    /api/attendance?day=    feuille de presence du jour (JSON), /api/attendance.csv pour l'export
@@ -113,11 +113,11 @@ class FaceEngine:
             self._persons = PersonDetector(self.yolo_model)
         return self._persons
 
-    def students(self) -> list[str]:
+    def agents(self) -> list[str]:
         return sorted(self.db.embeddings)
 
     def enroll(self, name: str, images: list[tuple[str, np.ndarray | None]]) -> dict:
-        """images : [(nom du fichier, image ou None si illisible)]. Remplace l'eleve s'il existe."""
+        """images : [(nom du fichier, image ou None si illisible)]. Remplace l'agent s'il existe."""
         report, embeddings = [], []
         with self._lock:
             for filename, image in images:
@@ -158,19 +158,19 @@ class FaceEngine:
 
 
     def checkin(self, image: np.ndarray) -> dict:
-        """Reconnait l'eleve le plus proche et son geste, puis enregistre l'evenement."""
+        """Reconnait l'agent le plus proche et son geste, puis enregistre l'evenement."""
         from presence.gestures import Gesture
 
         with self._lock:
             match = self.recognizer.identify(image)
             gesture, points = self.hands.detect(image)
-            result = {"student": match.name if match else None,
+            result = {"agent": match.name if match else None,
                       "score": round(match.score, 3) if match else None,
                       "gesture": gesture.value, "accepted": False, "events": []}
             if match is None:
                 result["message"] = "Aucun visage detecte : place-toi face a la camera"
             elif match.name is None:
-                result["message"] = "Visage inconnu : enregistre d'abord l'eleve"
+                result["message"] = "Visage inconnu : enregistre d'abord l'agent"
             elif gesture is Gesture.NONE:
                 result["message"] = (f"{match.name} reconnu, mais aucun geste lu : poing ferme, "
                                      "pouce bien tendu vers le haut, le cote ou le bas")
@@ -189,10 +189,10 @@ class FaceEngine:
         register = self._register()
         try:
             rows = []
-            for student in register.students_for(day):
-                s = register.summary(student, day)
+            for agent in register.agents_for(day):
+                s = register.summary(agent, day)
                 rows.append({
-                    "student": s.student,
+                    "agent": s.agent,
                     "arrival": s.arrival.strftime("%H:%M:%S") if s.arrival else None,
                     "departure": s.departure.strftime("%H:%M:%S") if s.departure else None,
                     "pauses": s.pauses,
@@ -200,7 +200,7 @@ class FaceEngine:
                     "presence_minutes": s.presence_minutes,
                     "status": s.status.value,
                     "events": [{"event": e.value, "time": t.strftime("%H:%M:%S")}
-                               for e, t in register.events_for(student, day)],
+                               for e, t in register.events_for(agent, day)],
                 })
             return rows
         finally:
@@ -278,11 +278,11 @@ def create_app(engine):
     def index():
         return send_from_directory(STATIC_DIR, "admin.html")
 
-    @app.get("/api/students")
-    def students():
-        return jsonify(engine.students())
+    @app.get("/api/agents")
+    def agents():
+        return jsonify(engine.agents())
 
-    @app.post("/api/students")
+    @app.post("/api/agents")
     def enroll():
         name = " ".join(request.form.get("name", "").split())
         if not name or len(name) > 60:
@@ -293,10 +293,10 @@ def create_app(engine):
         result = engine.enroll(name, [(f.filename, decode_image(f.read())) for f in files])
         return jsonify(result), (201 if result["enrolled"] else 422)
 
-    @app.delete("/api/students/<path:name>")
+    @app.delete("/api/agents/<path:name>")
     def remove(name):
         if not engine.remove(name):
-            return jsonify(error="Eleve inconnu"), 404
+            return jsonify(error="Agent inconnu"), 404
         return "", 204
 
     @app.post("/api/analyze")
@@ -326,7 +326,7 @@ def create_app(engine):
         day = requested_day()
         if day is None:
             return jsonify(error="Date invalide (AAAA-MM-JJ)"), 400
-        return jsonify({"day": day.isoformat(), "students": engine.attendance(day)})
+        return jsonify({"day": day.isoformat(), "agents": engine.attendance(day)})
 
     @app.get("/api/attendance.csv")
     def attendance_csv():

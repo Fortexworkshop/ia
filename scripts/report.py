@@ -22,12 +22,12 @@ def main() -> None:
     args = parser.parse_args()
 
     register = AttendanceRegister(config.ATTENDANCE_DB)
-    students = register.students_for(args.day)
-    print(f"Presence du {args.day.isoformat()} : {len(students)} eleve(s)")
-    print(f"{'Eleve':<20}{'Arrivee':<10}{'Fin':<10}{'Pauses':<8}{'Min pause':<11}{'Min presence':<14}Statut")
-    for student in students:
-        s = register.summary(student, args.day)
-        print(f"{s.student:<20}"
+    agents = register.agents_for(args.day)
+    print(f"Presence du {args.day.isoformat()} : {len(agents)} agent(s)")
+    print(f"{'Agent':<20}{'Arrivee':<10}{'Fin':<10}{'Pauses':<8}{'Min pause':<11}{'Min presence':<14}Statut")
+    for agent in agents:
+        s = register.summary(agent, args.day)
+        print(f"{s.agent:<20}"
               f"{s.arrival.strftime('%H:%M') if s.arrival else '-':<10}"
               f"{s.departure.strftime('%H:%M') if s.departure else '-':<10}"
               f"{s.pauses:<8}{s.pause_minutes:<11}"

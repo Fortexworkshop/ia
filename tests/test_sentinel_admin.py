@@ -17,7 +17,7 @@ class FakeEngine:
     def __init__(self):
         self.db = {}
 
-    def students(self):
+    def agents(self):
         return sorted(self.db)
 
     def enroll(self, name, images):
@@ -47,17 +47,17 @@ def test_index_page(client):
 
 
 def test_enroll_list_and_delete(client):
-    res = client.post("/api/students", data={"name": "  Alice   Martin ", "photos": [(io.BytesIO(jpeg()), "a.jpg")]},
+    res = client.post("/api/agents", data={"name": "  Alice   Martin ", "photos": [(io.BytesIO(jpeg()), "a.jpg")]},
                       content_type="multipart/form-data")
     assert res.status_code == 201 and res.json["name"] == "Alice Martin"
-    assert client.get("/api/students").json == ["Alice Martin"]
-    assert client.delete("/api/students/Alice Martin").status_code == 204
-    assert client.delete("/api/students/Alice Martin").status_code == 404
+    assert client.get("/api/agents").json == ["Alice Martin"]
+    assert client.delete("/api/agents/Alice Martin").status_code == 204
+    assert client.delete("/api/agents/Alice Martin").status_code == 404
 
 
 def test_enroll_rejects_missing_name_or_unreadable_photo(client):
-    assert client.post("/api/students", data={"name": ""}, content_type="multipart/form-data").status_code == 400
-    res = client.post("/api/students", data={"name": "Bob", "photos": [(io.BytesIO(b"pas une image"), "x.jpg")]},
+    assert client.post("/api/agents", data={"name": ""}, content_type="multipart/form-data").status_code == 400
+    res = client.post("/api/agents", data={"name": "Bob", "photos": [(io.BytesIO(b"pas une image"), "x.jpg")]},
                       content_type="multipart/form-data")
     assert res.status_code == 422 and not res.json["enrolled"]
 
@@ -128,11 +128,11 @@ def test_checkin_full_day(real_engine):
     assert checkin(client, real_engine, Gesture.THUMB_DOWN)["events"] == ["DEPART"]
 
     day = client.get("/api/attendance").json
-    row = day["students"][0]
-    assert row["student"] == "Alice" and row["pauses"] == 1 and row["status"] == "parti"
+    row = day["agents"][0]
+    assert row["agent"] == "Alice" and row["pauses"] == 1 and row["status"] == "parti"
     assert row["arrival"] and row["departure"]
     csv_text = client.get("/api/attendance.csv").get_data(as_text=True)
-    assert csv_text.startswith("eleve;date;arrivee") and "Alice" in csv_text
+    assert csv_text.startswith("agent;date;arrivee") and "Alice" in csv_text
 
 
 def test_checkin_refusals(real_engine):
@@ -141,5 +141,5 @@ def test_checkin_refusals(real_engine):
     assert "inconnu" in checkin(client, real_engine, Gesture.THUMB_UP, name=None)["message"]
     unread = checkin(client, real_engine, Gesture.NONE)
     assert not unread["accepted"] and "aucun geste" in unread["message"]
-    assert client.get("/api/attendance").json["students"] == []
+    assert client.get("/api/attendance").json["agents"] == []
     assert client.get("/api/attendance?day=pas-une-date").status_code == 400

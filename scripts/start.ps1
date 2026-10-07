@@ -3,7 +3,7 @@
 # Usage : powershell -ExecutionPolicy Bypass -File scripts\start.ps1 [options]
 #   -FakeEsp     ajoute un faux ESP8266 (tant que le vrai boitier n'est pas pret)
 #   -Incident 60 avec -FakeEsp : derive surchauffe + gaz apres 60 mesures
-#   -Admin       lance la plateforme eleves / pointage au lieu de la vision (une seule webcam)
+#   -Admin       lance la plateforme d'acces / pointage au lieu de la vision (une seule webcam)
 #   -NoVision    ne lance pas la vision
 #   -Infra / -Dashboard  chemins des depots infra et dev
 #                (par defaut : a cote de ce depot, ou dans un dossier "fortex" a cote)
@@ -72,7 +72,7 @@ if ($FakeEsp) {
     Launch "Faux ESP8266" $root "$py scripts/fake_esp.py --interval 1$opt"
 }
 if ($Admin) {
-    Launch "IA - plateforme eleves" $root "$py scripts/sentinel_admin.py"
+    Launch "IA - plateforme d'acces" $root "$py scripts/sentinel_admin.py"
 } elseif (-not $NoVision) {
     Launch "IA - vision" $root "$py scripts/sentinel_vision.py --whitelist"
 }
@@ -87,4 +87,4 @@ if (Test-Path (Join-Path $Dashboard "package.json")) {
 
 Write-Host "`nDashboard : http://localhost:5173   Flux camera : http://localhost:8081/video" -ForegroundColor Green
 Write-Host "API backend : http://localhost:8080/docs" -ForegroundColor Green
-if ($Admin) { Write-Host "Plateforme eleves : http://localhost:5000" -ForegroundColor Green }
+if ($Admin) { Write-Host "Plateforme d'acces : http://localhost:5000" -ForegroundColor Green }

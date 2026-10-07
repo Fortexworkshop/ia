@@ -1,7 +1,7 @@
 """Registre de presence (SQLite) et regles metier des gestes.
 
 Pouce en haut  -> ARRIVEE (heure d'arrivee)
-Pouce de cote  -> PAUSE_DEBUT, puis au geste suivant PAUSE_FIN (retour de pause pipi)
+Pouce de cote  -> PAUSE_DEBUT, puis au geste suivant PAUSE_FIN (retour de pause)
 Pouce en bas   -> DEPART (fin de journee ; une pause en cours est cloturee automatiquement)
 """
 
@@ -40,7 +40,7 @@ class Outcome:
 
 @dataclass
 class DaySummary:
-    student: str
+    agent: str
     day: date
     arrival: datetime | None
     departure: datetime | None
@@ -67,78 +67,82 @@ class AttendanceRegister:
         self.conn.execute(
             """CREATE TABLE IF NOT EXISTS events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                student TEXT NOT NULL,
+                agent TEXT NOT NULL,
                 event TEXT NOT NULL,
                 timestamp TEXT NOT NULL,
                 day TEXT NOT NULL
             )"""
         )
-        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_events_day ON events(day, student)")
+        columns = [row[1] for row in self.conn.execute("PRAGMA table_info(events)")]
+        if "student" in columns:  # base creee par une ancienne version (colonne "student")
+            self.conn.execute("DROP INDEX IF EXISTS idx_events_day")
+            self.conn.execute("ALTER TABLE events RENAME COLUMN student TO agent")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_events_day ON events(day, agent)")
         self.conn.commit()
 
     # --- lecture -----------------------------------------------------------
-    def events_for(self, student: str, day: date) -> list[tuple[Event, datetime]]:
+    def events_for(self, agent: str, day: date) -> list[tuple[Event, datetime]]:
         rows = self.conn.execute(
-            "SELECT event, timestamp FROM events WHERE student = ? AND day = ? ORDER BY id",
-            (student, day.isoformat()),
+            "SELECT event, timestamp FROM events WHERE agent = ? AND day = ? ORDER BY id",
+            (agent, day.isoformat()),
         ).fetchall()
         return [(Event(e), datetime.fromisoformat(t)) for e, t in rows]
 
-    def status(self, student: str, day: date) -> Status:
-        events = self.events_for(student, day)
+    def status(self, agent: str, day: date) -> Status:
+        events = self.events_for(agent, day)
         return _STATUS_AFTER[events[-1][0] if events else None]
 
-    def students_for(self, day: date) -> list[str]:
+    def agents_for(self, day: date) -> list[str]:
         rows = self.conn.execute(
-            "SELECT DISTINCT student FROM events WHERE day = ? ORDER BY student", (day.isoformat(),)
+            "SELECT DISTINCT agent FROM events WHERE day = ? ORDER BY agent", (day.isoformat(),)
         ).fetchall()
         return [r[0] for r in rows]
 
     # --- ecriture ----------------------------------------------------------
-    def _record(self, student: str, event: Event, when: datetime) -> None:
+    def _record(self, agent: str, event: Event, when: datetime) -> None:
         self.conn.execute(
-            "INSERT INTO events (student, event, timestamp, day) VALUES (?, ?, ?, ?)",
-            (student, event.value, when.isoformat(timespec="seconds"), when.date().isoformat()),
+            "INSERT INTO events (agent, event, timestamp, day) VALUES (?, ?, ?, ?)",
+            (agent, event.value, when.isoformat(timespec="seconds"), when.date().isoformat()),
         )
 
-    def handle(self, student: str, gesture: Gesture, when: datetime | None = None) -> Outcome:
+    def handle(self, agent: str, gesture: Gesture, when: datetime | None = None) -> Outcome:
         when = when or datetime.now()
-        status = self.status(student, when.date())
+        status = self.status(agent, when.date())
         hour = when.strftime("%H:%M")
 
         if gesture is Gesture.THUMB_UP:
             if status is Status.ABSENT:
-                events, msg = [Event.ARRIVEE], f"{student} : arrivee enregistree a {hour}"
+                events, msg = [Event.ARRIVEE], f"{agent} : arrivee enregistree a {hour}"
             else:
-                return Outcome(False, [], f"{student} : arrivee deja enregistree aujourd'hui")
+                return Outcome(False, [], f"{agent} : arrivee deja enregistree aujourd'hui")
 
         elif gesture is Gesture.THUMB_SIDE:
             if status is Status.PRESENT:
-                events, msg = [Event.PAUSE_DEBUT], f"{student} : depart en pause a {hour}"
+                events, msg = [Event.PAUSE_DEBUT], f"{agent} : depart en pause a {hour}"
             elif status is Status.EN_PAUSE:
-                events, msg = [Event.PAUSE_FIN], f"{student} : retour de pause a {hour}"
+                events, msg = [Event.PAUSE_FIN], f"{agent} : retour de pause a {hour}"
             else:
-                return Outcome(False, [], f"{student} : pause impossible (statut {status.value})")
+                return Outcome(False, [], f"{agent} : pause impossible (statut {status.value})")
 
         elif gesture is Gesture.THUMB_DOWN:
             if status is Status.PRESENT:
-                events, msg = [Event.DEPART], f"{student} : fin enregistree a {hour}"
+                events, msg = [Event.DEPART], f"{agent} : fin enregistree a {hour}"
             elif status is Status.EN_PAUSE:
-                events, msg = [Event.PAUSE_FIN, Event.DEPART], f"{student} : pause cloturee, fin a {hour}"
+                events, msg = [Event.PAUSE_FIN, Event.DEPART], f"{agent} : pause cloturee, fin a {hour}"
             else:
-                return Outcome(False, [], f"{student} : fin impossible (statut {status.value})")
+                return Outcome(False, [], f"{agent} : fin impossible (statut {status.value})")
 
         else:
             return Outcome(False, [], "aucun geste")
 
         for event in events:
-            self._record(student, event, when)
+            self._record(agent, event, when)
         self.conn.commit()
         return Outcome(True, events, msg)
 
     # --- rapports ----------------------------------------------------------
-    def summary(self, student: str, day: date) -> DaySummary:
-        events = self.events_for(student, day)
+    def summary(self, agent: str, day: date) -> DaySummary:
+        events = self.events_for(agent, day)
         arrival = next((t for e, t in events if e is Event.ARRIVEE), None)
         departure = next((t for e, t in events if e is Event.DEPART), None)
         pauses, pause_seconds, pause_start = 0, 0.0, None
@@ -154,7 +158,7 @@ class AttendanceRegister:
         if arrival and departure:
             presence = ((departure - arrival).total_seconds() - pause_seconds) / 60
         return DaySummary(
-            student=student,
+            agent=agent,
             day=day,
             arrival=arrival,
             departure=departure,
@@ -169,12 +173,12 @@ class AttendanceRegister:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f, delimiter=";")
-            writer.writerow(["eleve", "date", "arrivee", "depart", "nb_pauses",
+            writer.writerow(["agent", "date", "arrivee", "depart", "nb_pauses",
                              "minutes_pause", "minutes_presence", "statut"])
-            for student in self.students_for(day):
-                s = self.summary(student, day)
+            for agent in self.agents_for(day):
+                s = self.summary(agent, day)
                 writer.writerow([
-                    s.student, s.day.isoformat(),
+                    s.agent, s.day.isoformat(),
                     s.arrival.strftime("%H:%M:%S") if s.arrival else "",
                     s.departure.strftime("%H:%M:%S") if s.departure else "",
                     s.pauses, s.pause_minutes,

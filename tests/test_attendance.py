@@ -55,8 +55,29 @@ def test_new_day_resets_status():
     assert reg.handle("dan", Gesture.THUMB_UP, datetime(2026, 10, 6, 8, 0)).accepted
 
 
-def test_students_are_independent():
+def test_agents_are_independent():
     reg = AttendanceRegister()
     reg.handle("alice", Gesture.THUMB_UP, at(8, 0))
     assert reg.status("bob", DAY) is Status.ABSENT
-    assert reg.students_for(DAY) == ["alice"]
+    assert reg.agents_for(DAY) == ["alice"]
+
+
+def test_migrates_old_student_column(tmp_path):
+    import sqlite3
+
+    from presence.attendance import AttendanceRegister
+
+    db = tmp_path / "old.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE events (id INTEGER PRIMARY KEY AUTOINCREMENT, student TEXT NOT NULL, "
+                 "event TEXT NOT NULL, timestamp TEXT NOT NULL, day TEXT NOT NULL)")
+    conn.execute("CREATE INDEX idx_events_day ON events(day, student)")
+    conn.execute("INSERT INTO events (student, event, timestamp, day) "
+                 "VALUES ('Alice', 'ARRIVEE', '2026-10-07T08:00:00', '2026-10-07')")
+    conn.commit()
+    conn.close()
+
+    from datetime import date
+    register = AttendanceRegister(db)
+    assert register.agents_for(date(2026, 10, 7)) == ["Alice"]
+    register.close()

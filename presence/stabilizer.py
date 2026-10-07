@@ -13,23 +13,23 @@ class GestureStabilizer:
         self._count = 0
         self._last_fired: dict[str, float] = {}
 
-    def update(self, student: str | None, gesture: Gesture, now: float) -> Gesture | None:
+    def update(self, agent: str | None, gesture: Gesture, now: float) -> Gesture | None:
         """Renvoie le geste valide une seule fois quand il est stable, sinon None."""
-        if student is None or gesture is Gesture.NONE:
+        if agent is None or gesture is Gesture.NONE:
             self._candidate, self._count = None, 0
             return None
 
-        if self._candidate == (student, gesture):
+        if self._candidate == (agent, gesture):
             self._count += 1
         else:
-            self._candidate, self._count = (student, gesture), 1
+            self._candidate, self._count = (agent, gesture), 1
 
         if self._count < self.frames_required:
             return None
-        if now - self._last_fired.get(student, float("-inf")) < self.cooldown_seconds:
+        if now - self._last_fired.get(agent, float("-inf")) < self.cooldown_seconds:
             return None
 
-        self._last_fired[student] = now
+        self._last_fired[agent] = now
         self._candidate, self._count = None, 0
         return gesture
 

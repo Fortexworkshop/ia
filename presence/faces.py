@@ -20,7 +20,7 @@ class FaceMatch:
 
 
 class FaceDatabase:
-    """Empreintes faciales des eleves, stockees dans un fichier .npz."""
+    """Empreintes faciales des agents, stockees dans un fichier .npz."""
 
     def __init__(self, path: str | Path):
         self.path = Path(path)

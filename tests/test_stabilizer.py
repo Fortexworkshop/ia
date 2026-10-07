@@ -2,8 +2,8 @@ from presence.gestures import Gesture
 from presence.stabilizer import GestureStabilizer
 
 
-def feed(stab, student, gesture, frames, start=0.0):
-    return [stab.update(student, gesture, start + i * 0.03) for i in range(frames)]
+def feed(stab, agent, gesture, frames, start=0.0):
+    return [stab.update(agent, gesture, start + i * 0.03) for i in range(frames)]
 
 
 def test_fires_once_after_enough_frames():

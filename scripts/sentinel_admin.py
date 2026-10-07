@@ -1,4 +1,4 @@
-"""Plateforme web : enregistrer des eleves, pointer (geste du pouce) et tester une image.
+"""Plateforme web : enregistrer des agents, pointer (geste du pouce) et tester une image.
 
 python scripts/sentinel_admin.py                 # http://localhost:5000 (cette machine uniquement)
 python scripts/sentinel_admin.py --host 0.0.0.0  # accessible depuis le reseau de la table

@@ -17,7 +17,7 @@ Point = tuple[float, float]
 class Gesture(str, Enum):
     THUMB_UP = "pouce_haut"      # arrivee
     THUMB_DOWN = "pouce_bas"     # depart / fin
-    THUMB_SIDE = "pouce_cote"    # pause pipi (debut ou retour)
+    THUMB_SIDE = "pouce_cote"    # pause (debut ou retour)
     NONE = "aucun"
 
 

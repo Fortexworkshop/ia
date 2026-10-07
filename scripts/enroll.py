@@ -1,8 +1,8 @@
-"""Enregistre le visage d'un eleve.
+"""Enregistre le visage d'un agent.
 
 Depuis la webcam :   python scripts/enroll.py "Alice Martin"
 Depuis des photos :  python scripts/enroll.py "Alice Martin" --images photos/alice/
-Supprimer un eleve : python scripts/enroll.py "Alice Martin" --remove
+Supprimer un agent : python scripts/enroll.py "Alice Martin" --remove
 """
 
 import argparse
@@ -62,16 +62,16 @@ def from_webcam(recognizer: FaceRecognizer, camera: int, samples: int) -> list:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("name", help="nom de l'eleve")
-    parser.add_argument("--images", type=Path, help="dossier de photos de l'eleve")
+    parser.add_argument("name", help="nom de l'agent")
+    parser.add_argument("--images", type=Path, help="dossier de photos de l'agent")
     parser.add_argument("--camera", type=int, default=0)
     parser.add_argument("--samples", type=int, default=5)
-    parser.add_argument("--remove", action="store_true", help="supprime l'eleve de la base")
+    parser.add_argument("--remove", action="store_true", help="supprime l'agent de la base")
     args = parser.parse_args()
 
     db = FaceDatabase(config.FACES_DB)
     if args.remove:
-        print("supprime" if db.remove(args.name) else "eleve inconnu")
+        print("supprime" if db.remove(args.name) else "agent inconnu")
         db.save()
         return
 
@@ -79,10 +79,10 @@ def main() -> None:
     embeddings = from_images(recognizer, args.images) if args.images else from_webcam(
         recognizer, args.camera, args.samples)
     if not embeddings:
-        sys.exit("Aucun visage capture, eleve non enregistre.")
+        sys.exit("Aucun visage capture, agent non enregistre.")
     db.add(args.name, embeddings)
     db.save()
-    print(f"{args.name} enregistre ({len(embeddings)} images). Eleves : {', '.join(sorted(db.embeddings))}")
+    print(f"{args.name} enregistre ({len(embeddings)} images). Agents : {', '.join(sorted(db.embeddings))}")
 
 
 if __name__ == "__main__":

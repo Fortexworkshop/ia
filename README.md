@@ -6,13 +6,13 @@ Partie Intelligence Artificielle du projet FORTEX (Workshop EPSI Bac+4 2026, mis
 |---|---|
 | [Fortexworkshop/infra](https://github.com/Fortexworkshop/infra) | Docker Compose : Mosquitto (MQTT) + PostgreSQL |
 | [Fortexworkshop/dev](https://github.com/Fortexworkshop/dev) | Dashboard de supervision (React) |
-| **Fortexworkshop/ia** (ce depot) | Vision (intrus), maintenance predictive, plateforme eleves / pointage |
+| **Fortexworkshop/ia** (ce depot) | Vision (intrus), maintenance predictive, controle d'acces du personnel |
 
 Contenu :
 
 1. **`sentinel/`** : detection d'intrus sur la webcam (YOLOv8) et maintenance predictive sur les
-   capteurs de l'ESP8266 (Isolation Forest). S'y ajoute la plateforme web pour enregistrer les
-   eleves, pointer par geste du pouce et tester une image.
+   capteurs de l'ESP8266 (Isolation Forest). S'y ajoute la plateforme web de **controle d'acces** :
+   liste blanche du personnel autorise, pointage des entrees et sorties sur site, test d'une image.
 2. **`presence/`** : reconnaissance faciale (YuNet + SFace), lecture du geste du pouce (MediaPipe)
    et registre de presence (SQLite). Ce code est utilise par la plateforme web et par la liste
    blanche de la vision.
@@ -62,7 +62,7 @@ powershell -ExecutionPolicy Bypass -File scripts\start.ps1 -FakeEsp -Incident 60
 ```
 
 `start.ps1` demarre Docker (infra), puis ouvre une fenetre par brique : maintenance predictive,
-vision, dashboard et, avec `-FakeEsp`, un faux ESP8266. `-Admin` lance la plateforme eleves a la
+vision, dashboard et, avec `-FakeEsp`, un faux ESP8266. `-Admin` lance la plateforme d'acces a la
 place de la vision (une seule webcam). `-DryRun` affiche les commandes sans rien lancer.
 
 ### Branchement avec les autres depots
@@ -98,24 +98,24 @@ ESP8266 ─MQTTS─► Mosquitto ─► fenetres glissantes 30 mesures ─► Is
   `/snapshot.jpg` et l'etat en JSON sur `/status`.
 - Taille d'inference par defaut `--imgsz 416`. Mesure sur CPU : 640 = ~118 ms, 320 = ~44 ms par image.
 
-### Plateforme web : eleves et test d'image (`sentinel/admin.py`, `scripts/sentinel_admin.py`)
+### Plateforme web : agents et test d'image (`sentinel/admin.py`, `scripts/sentinel_admin.py`)
 
 ```powershell
 python scripts/sentinel_admin.py      # puis ouvrir http://localhost:5000
 ```
 
-- **Enregistrer un eleve** : son nom et 1 a 10 photos du visage. L'eleve est ajoute a la liste
+- **Enregistrer un agent** : son nom et 1 a 10 photos du visage. L'agent est ajoute a la liste
   blanche (`data/faces.npz`), la meme que celle de `sentinel_vision.py --whitelist`.
 - **Pointage par geste** : avec la webcam du navigateur (photo prise apres 3 s) ou en envoyant une
-  photo. L'eleve est reconnu par son visage, puis son geste enregistre l'heure :
+  photo. L'agent est reconnu par son visage, puis son geste enregistre l'heure :
   pouce en haut = **arrivee**, pouce sur le cote = **pause** (1er geste = depart, 2e = retour),
   pouce en bas = **sortie**.
-- **Feuille de presence** : pour chaque eleve et chaque jour, l'heure d'arrivee, le nombre et la
+- **Feuille de presence** : pour chaque agent et chaque jour, l'heure d'arrivee, le nombre et la
   duree des pauses, l'heure de sortie, le temps present et le statut. Export CSV possible. Les
   donnees sont dans la meme base `data/presence.db` que la borne `scripts/run.py`.
 - **Tester une image** : la page affiche l'image annotee. Une personne avec un visage reconnu est
   encadree en vert (`AUTORISE`), les autres en rouge (`INTRUS`), et un visage inconnu en orange.
-- **Supprimer un eleve** : supprime son empreinte (droit a l'effacement).
+- **Supprimer un agent** : supprime son empreinte (droit a l'effacement).
 - Le serveur n'est accessible que depuis cette machine par defaut. `--host 0.0.0.0` l'ouvre au
   reseau de la table (a eviter : donnees biometriques).
 
@@ -184,33 +184,33 @@ modele apprend ainsi le niveau reel de la salle et des capteurs.
 
 ---
 
-# Presence IA : pointage des eleves par visage et geste du pouce
+# Module `presence/` : controle d'acces du personnel (visage + geste du pouce)
 
 Module `presence/` : borne de pointage autonome (`scripts/run.py`), aussi utilisee par la plateforme web.
 
-L'eleve se place devant la webcam. L'IA **reconnait son visage**, puis **lit le geste de sa main** :
+Un agent (technicien, garde) se place devant la webcam a l'entree du site. L'IA **reconnait son visage**, puis **lit le geste de sa main** :
 
 | Geste | Action enregistree |
 |---|---|
 | 👍 Pouce en haut | **Arrivee** (heure d'arrivee) |
-| 👉 Pouce sur le cote | **Pause pipi** : 1er geste = depart en pause, 2e geste = retour |
+| 👉 Pouce sur le cote | **Pause** : 1er geste = depart en pause, 2e geste = retour |
 | 👎 Pouce en bas | **Fin** (depart ; une pause en cours est fermee automatiquement) |
 
 ## Fonctionnement
 
 ```
-webcam ──► YuNet (detection visage) ──► SFace (empreinte 128D) ──► comparaison base eleves ──► nom
+webcam ──► YuNet (detection visage) ──► SFace (empreinte 128D) ──► comparaison base agents ──► nom
        └─► MediaPipe Hand Landmarker (21 points de la main) ──► regles geometriques ──► geste
                                      nom + geste tenus ~8 images ──► registre SQLite
 ```
 
-- **Visage** : modeles OpenCV pre-entraines (`presence/faces.py`). Chaque eleve est enregistre a partir
+- **Visage** : modeles OpenCV pre-entraines (`presence/faces.py`). Chaque agent est enregistre a partir
   de quelques photos. L'empreinte moyenne est comparee par similarite cosinus (seuil 0,363).
 - **Geste** (`presence/gestures.py`) : le pouce compte seulement si les 4 autres doigts sont replies et le
   pouce tendu. Sa direction (base → bout) donne l'angle : haut (±35°), bas (±35°), cote (±35°).
   Une diagonale ne declenche rien.
 - **Anti faux positifs** (`presence/stabilizer.py`) : le geste doit etre tenu 8 images de suite, puis
-  5 s de delai avant un nouveau geste du meme eleve. Un visage inconnu ne declenche rien.
+  5 s de delai avant un nouveau geste du meme agent. Un visage inconnu ne declenche rien.
 - **Regles** (`presence/attendance.py`) : pas de pause avant l'arrivee, pas de double arrivee,
   rien apres la fin. Une nouvelle journee repart de zero.
 
@@ -226,7 +226,7 @@ python scripts/download_models.py
 ## Utilisation
 
 ```bash
-# 1. Enregistrer chaque eleve (ESPACE pour capturer 5 photos)
+# 1. Enregistrer chaque agent (ESPACE pour capturer 5 photos)
 python scripts/enroll.py "Alice Martin"
 python scripts/enroll.py "Bob Durand" --images photos/bob/    # ou depuis un dossier de photos
 
@@ -240,7 +240,7 @@ python scripts/report.py --csv data/presence.csv
 Exemple de rapport :
 
 ```
-Eleve               Arrivee   Fin       Pauses  Min pause  Min presence  Statut
+Agent               Arrivee   Fin       Pauses  Min pause  Min presence  Statut
 Alice Martin        08:30     17:00     1       6.0        504.0         parti
 ```
 
@@ -258,11 +258,11 @@ le stabilisateur, les regles de presence et la base d'empreintes.
 ## RGPD : a lire avant un usage reel
 
 La reconnaissance faciale traite des **donnees biometriques**, categorie sensible (art. 9 RGPD).
-La CNIL considere qu'elle est en principe **disproportionnee pour le controle de presence**,
-surtout pour des eleves (souvent mineurs). Pour un deploiement reel il faudrait au minimum :
-consentement explicite et **alternative sans biometrie** (badge, appel), analyse d'impact (AIPD),
+Pour le controle d'acces a un site sensible (centrale energetique), la CNIL l'admet sous
+conditions strictes. Pour un deploiement reel il faudrait au minimum : information et
+consentement du personnel, **alternative sans biometrie** (badge), analyse d'impact (AIPD),
 traitement 100 % local (c'est le cas ici : aucune image n'est envoyee ni stockee, seulement les
 empreintes), duree de conservation limitee et suppression a la demande
 (`python scripts/enroll.py "Nom" --remove`).
 
-Pour un projet pedagogique ou une demo, utiliser des volontaires majeurs et informes.
+Pour la demo du workshop, utiliser uniquement des membres de l'equipe volontaires.

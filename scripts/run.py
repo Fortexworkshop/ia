@@ -1,6 +1,6 @@
-"""Borne de presence : l'eleve se place devant la camera et fait un geste.
+"""Borne de presence : l'agent se place devant la camera et fait un geste.
 
-Pouce en haut = arrivee | pouce de cote = pause pipi (aller / retour) | pouce en bas = fin.
+Pouce en haut = arrivee | pouce de cote = pause (aller / retour) | pouce en bas = fin.
 Touche Q pour quitter.
 """
 
@@ -32,12 +32,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--camera", type=int, default=0)
     parser.add_argument("--frames", type=int, default=8, help="images consecutives pour valider un geste")
-    parser.add_argument("--cooldown", type=float, default=5.0, help="secondes entre deux gestes d'un eleve")
+    parser.add_argument("--cooldown", type=float, default=5.0, help="secondes entre deux gestes d'un agent")
     args = parser.parse_args()
 
     db = FaceDatabase(config.FACES_DB)
     if not db.embeddings:
-        sys.exit("Aucun eleve enregistre. Lance d'abord scripts/enroll.py")
+        sys.exit("Aucun agent enregistre. Lance d'abord scripts/enroll.py")
 
     faces = FaceRecognizer(str(config.FACE_DETECTOR_MODEL), str(config.FACE_RECOGNIZER_MODEL), db)
     hands = HandGestureDetector(str(config.HAND_MODEL))
@@ -51,16 +51,16 @@ def main() -> None:
             ok, frame = cap.read()
             if not ok:
                 break
-            frame = cv2.flip(frame, 1)  # effet miroir, plus naturel pour l'eleve
+            frame = cv2.flip(frame, 1)  # effet miroir, plus naturel pour l'agent
             now = time.time()
 
             match = faces.identify(frame)
             gesture, points = hands.detect(frame)
-            student = match.name if match else None
-            validated = stabilizer.update(student, gesture, now)
+            agent = match.name if match else None
+            validated = stabilizer.update(agent, gesture, now)
 
             if validated:
-                outcome = register.handle(student, validated)
+                outcome = register.handle(agent, validated)
                 print(outcome.message)
                 message, message_until = outcome.message, now + 3
                 message_color = GREEN if outcome.accepted else RED
@@ -74,7 +74,7 @@ def main() -> None:
             if points:
                 for px, py in points:
                     cv2.circle(frame, (int(px), int(py)), 3, ORANGE, -1)
-            if gesture is not Gesture.NONE and student:
+            if gesture is not Gesture.NONE and agent:
                 cv2.putText(frame, LABELS[gesture], (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, ORANGE, 2)
                 cv2.rectangle(frame, (10, 40), (10 + int(200 * stabilizer.progress()), 50), ORANGE, -1)
             if now < message_until:
