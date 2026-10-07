@@ -46,13 +46,13 @@ $py = ".venv\Scripts\python.exe"
 
 # 1. Infra : Mosquitto + PostgreSQL
 if (Test-Path (Join-Path $Infra "docker-compose.yml")) {
-    Write-Host "[infra] docker compose up -d ($Infra)" -ForegroundColor Cyan
+    Write-Host "[infra] docker compose up -d --build ($Infra)" -ForegroundColor Cyan
     if (-not $DryRun) {
         if (-not (Test-Path (Join-Path $Infra ".env"))) {
             Write-Host "ATTENTION : $Infra\.env absent (copier .env.example et changer POSTGRES_PASSWORD)" -ForegroundColor Yellow
         }
         Push-Location $Infra
-        docker compose up -d
+        docker compose up -d --build
         Pop-Location
         if ($LASTEXITCODE -ne 0) { Write-Host "Docker ne repond pas : demarre Docker Desktop" -ForegroundColor Red; exit 1 }
         Start-Sleep -Seconds 3
@@ -62,8 +62,14 @@ if (Test-Path (Join-Path $Infra "docker-compose.yml")) {
 }
 
 # 2. Backend (MQTT -> PostgreSQL + API REST/WebSocket pour le dashboard)
-Launch "Backend FORTEX" $root "$py scripts/backend.py"
-if (-not $DryRun) { Start-Sleep -Seconds 4 }
+#    Conteneur fortex-backend du docker-compose infra s'il existe, sinon fenetre locale.
+$backendInDocker = -not $DryRun -and (docker ps -q --filter "name=fortex-backend" 2>$null)
+if ($backendInDocker) {
+    Write-Host "[Backend FORTEX] conteneur Docker fortex-backend" -ForegroundColor Cyan
+} else {
+    Launch "Backend FORTEX" $root "$py scripts/backend.py"
+    if (-not $DryRun) { Start-Sleep -Seconds 4 }
+}
 
 # 3. IA
 Launch "IA - maintenance predictive" $root "$py scripts/sentinel_anomaly.py"

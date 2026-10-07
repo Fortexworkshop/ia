@@ -68,7 +68,9 @@ powershell -ExecutionPolicy Bypass -File scripts\start.ps1 -FakeEsp -Incident 60
 vision, dashboard et, avec `-FakeEsp`, un faux ESP8266. `-Admin` lance la plateforme d'acces a la
 place de la vision (une seule webcam). `-DryRun` affiche les commandes sans rien lancer.
 
-**Documentation IA pour le dossier** : [docs/IA.md](docs/IA.md) (modeles, mesures, resultats, limites).
+**Documentation pour le dossier** : [docs/IA.md](docs/IA.md) (IA : modeles, mesures, resultats), [docs/SECURITE.md](docs/SECURITE.md) (matrice de securite), [firmware/README.md](firmware/README.md) (firmware ESP8266 et schema de cablage).
+
+**Preuve de securite** : `python scripts/check_security.py` (7 controles : TLS, comptes, ACL, jeton API).
 
 ### Branchement avec les autres depots
 

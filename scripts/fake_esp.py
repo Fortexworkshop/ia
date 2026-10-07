@@ -9,6 +9,7 @@ Topic : sentinel/<node_id>/sensors (meme config SENTINEL_MQTT_* que sentinel_ano
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -31,8 +32,10 @@ def main() -> None:
     import paho.mqtt.client as mqtt
 
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"fake-esp-{config.NODE_ID}")
-    if config.MQTT_USER:
-        client.username_pw_set(config.MQTT_USER, config.MQTT_PASSWORD)
+    user = os.environ.get("ESP_MQTT_USER") or config.MQTT_USER  # compte du boitier (droits d'ecriture)
+    password = os.environ.get("ESP_MQTT_PASSWORD") or config.MQTT_PASSWORD
+    if user:
+        client.username_pw_set(user, password)
     if config.MQTT_CA_CERT:
         client.tls_set(ca_certs=config.MQTT_CA_CERT)
     client.connect(config.MQTT_HOST, config.MQTT_PORT, keepalive=30)
