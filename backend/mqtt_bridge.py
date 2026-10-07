@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+from sentinel.sensors import topics
+
 
 class MqttBridge:
     def __init__(self, service, host: str, port: int, topic: str, user: str = "", password: str = "",
@@ -40,7 +42,8 @@ class MqttBridge:
     def _on_connect(self, client, userdata, flags, reason_code, properties):
         self.connected = not reason_code.is_failure
         print(f"[mqtt] connecte a {self.host}:{self.port} ({reason_code}), abonnement {self.topic}")
-        client.subscribe(self.topic, qos=1)
+        for topic in topics(self.topic):
+            client.subscribe(topic, qos=1)
 
     def _on_disconnect(self, client, userdata, flags, reason_code, properties):
         self.connected = False
@@ -53,7 +56,7 @@ class MqttBridge:
             print(f"[mqtt] payload non JSON ignore sur {msg.topic}")
             return
         parts = msg.topic.split("/")
-        node = payload.get("node_id") or (parts[1] if len(parts) >= 3 else "inconnu")
+        node = payload.get("node_id") or (parts[1] if parts[0] == "sentinel" and len(parts) >= 3 else "simulateur")
         try:
             if not self.service.ingest_reading(node, payload):
                 print(f"[mqtt] mesure incomplete ignoree : {payload}")

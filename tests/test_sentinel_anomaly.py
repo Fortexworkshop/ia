@@ -57,3 +57,27 @@ def test_save_load_and_stream(model, tmp_path):
     assert results[:29] == [None] * 29
     assert results[29] == pytest.approx(model.score(series[:30]))
     assert set(monitor.explain()) == set(FEATURES)
+
+
+def test_pipeline_keeps_one_window_per_node(model, tmp_path, monkeypatch):
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location("sentinel_anomaly", Path("scripts/sentinel_anomaly.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    sent = []
+
+    class FakeAlerts:
+        def send(self, alert):
+            sent.append(alert)
+
+    pipeline = module.Pipeline(model, FakeAlerts(), consecutive=10, cooldown=30, record=None)
+    rng = np.random.default_rng(5)
+    normal_a, normal_b = normal_series(200, rng, base_temp=20, base_gas=220), normal_series(200, rng, base_temp=27, base_gas=370)
+    for (ta, ha, ga), (tb, hb, gb) in zip(normal_a, normal_b):
+        pipeline.handle({"node_id": "A", "temperature": ta, "humidity": ha, "gas": ga})
+        pipeline.handle({"node_id": "B", "temperature": tb, "humidity": hb, "gas": gb})
+    assert set(pipeline.monitors) == {"A", "B"}
+    assert sent == []  # melanger A et B aurait cree de fausses pentes

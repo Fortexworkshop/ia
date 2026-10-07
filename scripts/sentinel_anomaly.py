@@ -24,6 +24,7 @@ from sentinel import config  # noqa: E402
 from sentinel.alerts import AlertClient, Severity, build_alert  # noqa: E402
 from sentinel.anomaly import SENSORS, AnomalyModel, StreamMonitor  # noqa: E402
 from sentinel.debounce import Debouncer  # noqa: E402
+from sentinel.sensors import normalize, topics  # noqa: E402
 from sentinel.simulate import incident_series  # noqa: E402
 
 CRITICAL_SCORE = -0.05  # score tres negatif = anomalie marquee
@@ -32,39 +33,44 @@ CRITICAL_SCORE = -0.05  # score tres negatif = anomalie marquee
 class Pipeline:
     def __init__(self, model: AnomalyModel, alerts: AlertClient, consecutive: int, cooldown: float,
                  record: Path | None):
-        self.monitor = StreamMonitor(model)
+        self.model = model
+        self.monitors: dict[str, StreamMonitor] = {}  # une fenetre glissante par boitier
         self.alerts = alerts
-        self.debouncer = Debouncer(consecutive, cooldown)
+        self.debouncers: dict[str, Debouncer] = {}
+        self.consecutive, self.cooldown = consecutive, cooldown
         self.record = record
         if record and not record.exists():
             record.parent.mkdir(parents=True, exist_ok=True)
             record.write_text("timestamp,node_id,temperature,humidity,gas,pir\n", encoding="utf-8")
 
-    def handle(self, reading: dict) -> None:
-        if any(reading.get(s) is None for s in SENSORS):
-            print(f"[!] mesure incomplete ignoree : {reading}")
+    def handle(self, payload: dict) -> None:
+        reading = normalize(payload)
+        if reading is None:
+            print(f"[!] mesure incomplete ignoree : {payload}")
             return
-        node = reading.get("node_id", config.NODE_ID)
+        node = payload.get("node_id", config.NODE_ID)
         if self.record:
             with self.record.open("a", newline="", encoding="utf-8") as f:
                 csv.writer(f).writerow([datetime.now().isoformat(timespec="seconds"), node,
-                                        *(reading[s] for s in SENSORS), reading.get("pir", "")])
+                                        *(reading[s] for s in SENSORS), reading["pir"]])
 
-        score = self.monitor.push(reading)
+        monitor = self.monitors.setdefault(node, StreamMonitor(self.model))
+        debouncer = self.debouncers.setdefault(node, Debouncer(self.consecutive, self.cooldown))
+        score = monitor.push(reading)
         if score is None:
-            print(f"  remplissage fenetre {len(self.monitor.buffer)}/{self.monitor.model.window}", end="\r")
+            print(f"  remplissage fenetre {len(monitor.buffer)}/{self.model.window} ({node})", end="\r")
             return
         flag = "ANOMALIE" if score < 0 else "normal"
         print(f"T={reading['temperature']:5.1f}  H={reading['humidity']:5.1f}  "
               f"gaz={reading['gas']:6.0f}  score={score:+.3f}  {flag}")
 
-        if self.debouncer.update(score < 0, time.time()):
+        if debouncer.update(score < 0, time.time()):
             severity = Severity.CRITICAL if score < CRITICAL_SCORE else Severity.WARNING
             self.alerts.send(build_alert(
                 node, "anomaly", "ENV_ANOMALY", severity,
                 "Derive anormale des capteurs environnementaux (risque surchauffe / fuite de gaz)",
                 {"score": round(score, 4), "reading": {s: round(float(reading[s]), 2) for s in SENSORS},
-                 "features": self.monitor.explain()},
+                 "features": monitor.explain()},
             ))
 
 
@@ -73,7 +79,8 @@ def run_mqtt(pipeline: Pipeline) -> None:
 
     def on_connect(client, userdata, flags, reason_code, properties):
         print(f"MQTT connecte ({reason_code}), abonnement a {config.MQTT_TOPIC}")
-        client.subscribe(config.MQTT_TOPIC, qos=1)
+        for topic in topics(config.MQTT_TOPIC):
+            client.subscribe(topic, qos=1)
 
     def on_message(client, userdata, msg):
         try:
@@ -81,7 +88,8 @@ def run_mqtt(pipeline: Pipeline) -> None:
         except ValueError:
             print(f"[!] payload non JSON sur {msg.topic}")
             return
-        reading.setdefault("node_id", msg.topic.split("/")[1] if msg.topic.count("/") >= 2 else config.NODE_ID)
+        parts = msg.topic.split("/")
+        reading.setdefault("node_id", parts[1] if parts[0] == "sentinel" and len(parts) >= 3 else "simulateur")
         pipeline.handle(reading)
 
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"sentinel-ia-{config.NODE_ID}")

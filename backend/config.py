@@ -51,7 +51,7 @@ MQTT_PORT = sentinel_config.MQTT_PORT
 MQTT_USER = sentinel_config.MQTT_USER
 MQTT_PASSWORD = sentinel_config.MQTT_PASSWORD
 MQTT_CA_CERT = sentinel_config.MQTT_CA_CERT
-SENSORS_TOPIC = "sentinel/+/sensors"
+SENSORS_TOPIC = sentinel_config.MQTT_TOPIC  # plusieurs topics separes par des virgules
 COMMANDS_TOPIC = "sentinel/{node_id}/commands"
 NODE_ID = sentinel_config.NODE_ID
 

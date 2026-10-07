@@ -11,6 +11,8 @@ from __future__ import annotations
 import time
 from datetime import datetime
 
+from sentinel.sensors import normalize
+
 
 def now_ms() -> int:
     return int(time.time() * 1000)
@@ -28,25 +30,8 @@ def _ts(value) -> int:
 
 
 def parse_sensor_payload(payload: dict) -> dict | None:
-    """Payload ESP8266 -> mesure normalisee. Accepte aussi les noms courts du dashboard."""
-    def number(*keys):
-        for key in keys:
-            if payload.get(key) is not None:
-                return float(payload[key])
-        return None
-
-    try:
-        reading = {
-            "temperature": number("temperature", "temp"),
-            "humidity": number("humidity", "hum"),
-            "gas": number("gas"),
-            "pir": int(bool(number("pir", "presence") or 0)),
-        }
-    except (TypeError, ValueError):
-        return None
-    if reading["temperature"] is None or reading["humidity"] is None or reading["gas"] is None:
-        return None
-    return reading
+    """Payload capteurs (firmware, simulateur infra ou dashboard) -> mesure normalisee."""
+    return normalize(payload)
 
 
 def reading_message(reading: dict, ts=None) -> dict:

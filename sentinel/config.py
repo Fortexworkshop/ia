@@ -42,7 +42,7 @@ API_CA_CERT = _env("SENTINEL_API_CA_CERT")    # CA de la stack (certificat auto-
 # --- Broker MQTT (capteurs ESP8266) ---------------------------------------
 MQTT_HOST = _env("SENTINEL_MQTT_HOST", "localhost")
 MQTT_PORT = int(_env("SENTINEL_MQTT_PORT", "1883"))
-MQTT_TOPIC = _env("SENTINEL_MQTT_TOPIC", "sentinel/+/sensors")
+MQTT_TOPIC = _env("SENTINEL_MQTT_TOPIC", "sentinel/+/sensors,fortex/capteurs/mesures")
 MQTT_USER = _env("SENTINEL_MQTT_USER")
 MQTT_PASSWORD = _env("SENTINEL_MQTT_PASSWORD")
 MQTT_CA_CERT = _env("SENTINEL_MQTT_CA_CERT")  # vide = pas de TLS (a eviter hors debug)
