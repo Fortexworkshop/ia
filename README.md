@@ -99,7 +99,7 @@ ESP8266 ─MQTTS─► Mosquitto ─► fenetres glissantes 30 mesures ─► Is
   est marquee « autorisee » en vert et ne declenche pas d'alerte.
 - **Flux pour le dashboard** : `<img src="http://<serveur>:8081/video">`, la derniere image sur
   `/snapshot.jpg` et l'etat en JSON sur `/status`.
-- Taille d'inference par defaut `--imgsz 416`. Mesure sur CPU : 640 = ~118 ms, 320 = ~44 ms par image.
+- Taille d'inference par defaut `--imgsz 480`, mesuree sur la webcam du PC serveur avec `scripts/bench_vision.py` : 32 ms en moyenne, 34 ms au 95e centile (640 : 124 ms au 95e centile, hors exigence).
 
 ### Plateforme web : agents et test d'image (`sentinel/admin.py`, `scripts/sentinel_admin.py`)
 

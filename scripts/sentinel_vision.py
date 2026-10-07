@@ -42,7 +42,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--source", default="0", help="index webcam ou chemin video")
     parser.add_argument("--confidence", type=float, default=0.5)
-    parser.add_argument("--imgsz", type=int, default=416, help="taille d'inference YOLO (320 = plus rapide, 640 = plus precis)")
+    parser.add_argument("--imgsz", type=int, default=480, help="taille d'inference YOLO (320 = plus rapide, 640 = plus precis)")
     parser.add_argument("--frames", type=int, default=5, help="images consecutives avant alerte")
     parser.add_argument("--cooldown", type=float, default=10.0, help="secondes entre deux alertes")
     parser.add_argument("--whitelist", action="store_true", help="ignorer les visages autorises")
