@@ -4,6 +4,7 @@ python scripts/sentinel_vision.py                    # webcam 0, fenetre + flux 
 python scripts/sentinel_vision.py --whitelist        # visages enregistres (scripts/enroll.py) = autorises
 python scripts/sentinel_vision.py --no-window        # sans affichage (serveur, Docker)
 python scripts/sentinel_vision.py --source video.mp4 # rejouer une video de test
+python scripts/sentinel_vision.py --pointage   # + journal de presence : detection, pouce haut = entree, pouce bas = sortie
 
 Touche Q pour quitter (mode fenetre).
 """
@@ -17,8 +18,11 @@ import cv2
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from presence import config as presence_config  # noqa: E402
+from presence.gestures import Gesture, HandGestureDetector  # noqa: E402
+from presence.stabilizer import GestureStabilizer  # noqa: E402
 from sentinel import config  # noqa: E402
-from sentinel.alerts import AlertClient, Severity, build_alert  # noqa: E402
+from sentinel.alerts import AlertClient, PresenceClient, Severity, build_alert, build_presence  # noqa: E402
 from sentinel.debounce import Debouncer  # noqa: E402
 from sentinel.vision import (  # noqa: E402
     PersonDetector, StreamState, annotate, known_faces_in, mark_authorized, prepare_frame,
@@ -38,6 +42,11 @@ def load_whitelist():
                           str(presence_config.FACE_RECOGNIZER_MODEL), db)
 
 
+GESTURE_LABELS = {Gesture.THUMB_UP: "pouce en haut : entree",
+                  Gesture.THUMB_DOWN: "pouce en bas : sortie",
+                  Gesture.THUMB_SIDE: "pouce de cote : pause"}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--source", default="0", help="index webcam ou chemin video")
@@ -46,14 +55,28 @@ def main() -> None:
     parser.add_argument("--frames", type=int, default=5, help="images consecutives avant alerte")
     parser.add_argument("--cooldown", type=float, default=10.0, help="secondes entre deux alertes")
     parser.add_argument("--whitelist", action="store_true", help="ignorer les visages autorises")
+    parser.add_argument("--pointage", action="store_true",
+                        help="journal de presence : detection, pouce en haut = entree, pouce de cote = pause / reprise, pouce en bas = sortie")
+    parser.add_argument("--gesture-frames", type=int, default=8, help="images consecutives pour valider un geste")
+    parser.add_argument("--gesture-cooldown", type=float, default=10.0, help="secondes entre deux gestes")
+    parser.add_argument("--gesture-every", type=int, default=2,
+                        help="une detection de main toutes les N images (la main coute ~40 ms, exigence < 100 ms par trame)")
     parser.add_argument("--no-window", action="store_true")
     parser.add_argument("--host", default="0.0.0.0", help="interface du flux video")
     parser.add_argument("--port", type=int, default=config.STREAM_PORT)
     args = parser.parse_args()
 
     detector = PersonDetector(config.YOLO_MODEL, args.confidence, args.imgsz)
-    whitelist = load_whitelist() if args.whitelist else None
+    whitelist = load_whitelist() if (args.whitelist or args.pointage) else None
     alerts = AlertClient(config.API_URL, config.API_TOKEN, config.API_CA_CERT)
+    presence = PresenceClient(config.API_URL, config.API_TOKEN, config.API_CA_CERT)
+    hands, stabilizer = None, None
+    if args.pointage:
+        if not presence_config.HAND_MODEL.exists():
+            sys.exit(f"Modele de gestes absent ({presence_config.HAND_MODEL.name}) : "
+                     "lance python scripts/download_models.py")
+        hands = HandGestureDetector(str(presence_config.HAND_MODEL))
+        stabilizer = GestureStabilizer(args.gesture_frames, args.gesture_cooldown)
     debouncer = Debouncer(args.frames, args.cooldown)
     state = StreamState()
     start_stream_server(state, args.host, args.port)
@@ -68,7 +91,8 @@ def main() -> None:
     if not cap.isOpened():
         sys.exit(f"Impossible d'ouvrir la source video {args.source}")
 
-    fps, last = 0.0, time.perf_counter()
+    fps, last, was_present, gesture, gesture_tick = 0.0, time.perf_counter(), False, Gesture.NONE, 0
+    paused: set[str] = set()  # personnes en pause (pouce de cote alterne pause / reprise)
     try:
         while True:
             ok, frame = cap.read()
@@ -79,10 +103,37 @@ def main() -> None:
             detections = detector.detect(frame)
             if whitelist and detections:
                 mark_authorized(detections, known_faces_in(whitelist, frame))
+
+            now = time.time()
+            authorized = [d.authorized for d in detections if d.authorized]
+            agent = authorized[0] if authorized else None
+
+            # Journal de presence : une ligne par personne qui se presente (front montant).
+            if detections and not was_present:
+                presence.send(build_presence(config.NODE_ID, "detection", person=agent or ""))
+            was_present = bool(detections)
+
+            note = ""
+            if stabilizer is not None:
+                if gesture_tick % max(1, args.gesture_every) == 0:
+                    gesture, _ = hands.detect(frame)
+                gesture_tick += 1
+                note = GESTURE_LABELS.get(gesture, "")
+                validated = stabilizer.update(agent, gesture, now)
+                if validated is Gesture.THUMB_SIDE:
+                    # 1er pouce de cote = debut de pause, le suivant = retour (regle de presence/attendance.py)
+                    kind = "reprise" if agent in paused else "pause"
+                    paused.symmetric_difference_update({agent})
+                    presence.send(build_presence(config.NODE_ID, kind, person=agent or ""))
+                elif validated is not None:
+                    paused.discard(agent)
+                    presence.send(build_presence(
+                        config.NODE_ID, "entree" if validated is Gesture.THUMB_UP else "sortie",
+                        person=agent or ""))
+
             latency_ms = (time.perf_counter() - start) * 1000
 
             intruders = [d for d in detections if not d.authorized]
-            now = time.time()
             if debouncer.update(bool(intruders), now):
                 alerts.send(build_alert(
                     config.NODE_ID, "vision", "INTRUSION", Severity.CRITICAL,
@@ -101,12 +152,13 @@ def main() -> None:
             tick = time.perf_counter()
             fps = 0.9 * fps + 0.1 * (1 / max(tick - last, 1e-6))
             last = tick
-            view = annotate(frame, detections, latency_ms, fps, debouncer.active)
+            view = annotate(frame, detections, latency_ms, fps, debouncer.active, note)
             state.publish(view, {
                 "node_id": config.NODE_ID,
                 "persons": len(detections),
                 "intruders": len(intruders),
                 "alarm": debouncer.active,
+                "gesture": note,
                 "latency_ms": round(latency_ms, 1),
                 "fps": round(fps, 1),
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -122,6 +174,7 @@ def main() -> None:
         cap.release()
         cv2.destroyAllWindows()
         alerts.flush()
+        presence.flush()
 
 
 if __name__ == "__main__":

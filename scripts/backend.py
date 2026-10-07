@@ -18,7 +18,11 @@ from backend import config  # noqa: E402
 from backend.app import Hub, Service, create_app  # noqa: E402
 from backend.messages import SafetyAlarm  # noqa: E402
 from backend.mqtt_bridge import MqttBridge  # noqa: E402
+from backend.people import FaceEnroller, PeopleStore  # noqa: E402
+from backend.presence import PresenceLog  # noqa: E402
+from backend.vision import VisionController  # noqa: E402
 from backend.store import MemoryStore, PostgresStore  # noqa: E402
+from presence import config as presence_config  # noqa: E402
 
 
 def make_store(memory: bool):
@@ -55,8 +59,26 @@ def main() -> None:
     if not config.API_TOKEN:
         print("[api] SENTINEL_API_TOKEN vide : POST /api/v1/alerts sans authentification")
 
+    enroller = FaceEnroller(presence_config.FACES_DB, presence_config.FACE_DETECTOR_MODEL,
+                            presence_config.FACE_RECOGNIZER_MODEL)
+    people = PeopleStore(config.DATA_DIR / "people.db", enroller)
+    if enroller.error:
+        print(f"[people] visages indisponibles : {enroller.error}")
+    else:
+        print(f"[people] liste blanche : {presence_config.FACES_DB.name}, donnees dans people.db")
+
+    presence = PresenceLog(config.DATA_DIR / "presence_log.db")
+    vision = VisionController(config.ROOT, port=config.STREAM_PORT,
+                              api_url=f"http://localhost:{args.port}", api_token=config.API_TOKEN,
+                              log_path=config.DATA_DIR / "vision.log")
+
+    def shutdown() -> None:
+        vision.stop()  # sinon la webcam resterait verrouillee apres l'arret du backend
+        bridge.stop()
+
     app = create_app(service, config.API_TOKEN, config.CORS_ORIGINS, mqtt_status=lambda: bridge.connected,
-                     on_startup=bridge.start, on_shutdown=bridge.stop)
+                     on_startup=bridge.start, on_shutdown=shutdown, people=people, presence=presence,
+                     vision=vision)
     print(f"API : http://localhost:{args.port}/docs   WebSocket : ws://localhost:{args.port}/ws")
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 

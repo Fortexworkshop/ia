@@ -81,7 +81,7 @@ GREEN, RED, WHITE = (0, 200, 0), (0, 0, 230), (255, 255, 255)
 
 
 def annotate(frame: np.ndarray, detections: list[Detection], latency_ms: float, fps: float,
-             alarm: bool) -> np.ndarray:
+             alarm: bool, note: str = "") -> np.ndarray:
     view = frame.copy()
     for det in detections:
         x1, y1, x2, y2 = det.box
@@ -91,6 +91,8 @@ def annotate(frame: np.ndarray, detections: list[Detection], latency_ms: float, 
         cv2.putText(view, label, (x1, max(15, y1 - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
     cv2.putText(view, f"{latency_ms:.0f} ms | {fps:.1f} fps", (10, 25),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, GREEN if latency_ms < 100 else RED, 2)
+    if note:
+        cv2.putText(view, note, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.6, WHITE, 2)
     if alarm:
         cv2.rectangle(view, (0, 0), (view.shape[1] - 1, view.shape[0] - 1), RED, 6)
         cv2.putText(view, "DETECTION INTRUS", (10, view.shape[0] - 15),

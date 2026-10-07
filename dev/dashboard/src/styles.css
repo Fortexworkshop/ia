@@ -47,3 +47,19 @@ button.on { background: var(--accent); color: var(--on-accent); font-weight: 700
 .avatar { background: var(--surface-3); display: grid; place-items: center; font-weight: 800; font-size: var(--fs-lg); }
 .feed { width: 100%; aspect-ratio: 4/3; max-height: 540px; object-fit: contain; background: #000; border-radius: var(--radius); display: block; }
 .feed.empty { display: grid; place-items: center; color: var(--text-muted); padding: var(--sp-4); text-align: center; }
+
+/* Page « Individus » : formulaire d'ajout et cartes */
+.form h3 { margin: 0 0 var(--sp-3); font-size: var(--fs-base); }
+.fields { display: grid; gap: var(--sp-3); grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.fields label { display: grid; gap: var(--sp-1); font-size: var(--fs-xs); color: var(--text-muted); }
+.fields .wide { grid-column: 1 / -1; }
+input, textarea { font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--control-border); border-radius: var(--radius-sm); padding: 8px 10px; width: 100%; }
+input[type='file'] { padding: 6px; }
+.who { display: grid; gap: var(--sp-1); }
+.who .badge { margin: 0; width: fit-content; }
+.badge.critical { background: color-mix(in srgb, var(--critical) 25%, var(--bg)); }
+.preview { width: 40px; height: 40px; border-radius: var(--radius-sm); align-self: center; }
+
+/* Journal de présence : pointages (entrée, pause / reprise, sortie) */
+.list li.entree, .list li.reprise { border-left: 4px solid var(--ok); }
+.list li.pause, .list li.sortie { border-left: 4px solid var(--warning); }

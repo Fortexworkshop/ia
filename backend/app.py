@@ -7,6 +7,13 @@ REST
   POST /api/v1/alerts/{id}/ack     acquitter une alerte
   GET  /api/v1/readings?limit=60   dernieres mesures capteurs
   GET  /api/v1/devices             statut des boitiers
+  GET  /api/v1/people              individus de la liste blanche (donnees + visage)
+  POST /api/v1/people              ajoute/modifie un individu (jeton) : {name, role, notes, photo}
+  DELETE /api/v1/people/{name}     retire un individu (jeton) : donnees et empreinte faciale
+  GET  /api/v1/presence            journal de presence (detections et pointages)
+  POST /api/v1/presence            ajoute un evenement (jeton) : {kind, person, message}
+  GET  /api/v1/vision              etat du processus de vision (la webcam est exclusive)
+  POST /api/v1/vision/start|stop   demarre / arrete la vision (jeton) : libere la camera
   POST /api/v1/commands            {actuator: "buzzer"|"led", state: bool} -> MQTT sentinel/<node>/commands
   POST /api/v1/test/{kind}         alerte de test (heat | gas | intrusion) pour la plateforme de test
 WebSocket
@@ -29,6 +36,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from .messages import SafetyAlarm, alert_message, now_ms, parse_sensor_payload, reading_message
+from .people import PeopleStore
+from .presence import PresenceLog
+from .vision import VisionController
 
 
 class AlertIn(BaseModel):
@@ -45,6 +55,20 @@ class CommandIn(BaseModel):
     actuator: Literal["buzzer", "led"]
     state: bool
     node_id: str | None = None
+
+
+class PresenceIn(BaseModel):
+    kind: Literal["detection", "entree", "pause", "reprise", "sortie"] = "detection"
+    person: str = Field(default="", max_length=80)
+    ts: str = ""          # horodatage ISO de la source ; vide = heure du backend
+
+
+class PersonIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    role: str = Field(default="", max_length=80)
+    notes: str = Field(default="", max_length=500)
+    photo: str = ""              # data URL ou base64 ; vide = pas de visage a enregistrer
+    previous: str | None = None  # ancien nom, si l'individu est renomme
 
 
 class Hub:
@@ -122,7 +146,10 @@ TEST_ALERTS = {
 
 
 def create_app(service: Service, api_token: str = "", cors_origins: list[str] | None = None,
-               mqtt_status=lambda: False, on_startup=None, on_shutdown=None) -> FastAPI:
+               mqtt_status=lambda: False, on_startup=None, on_shutdown=None,
+               people: PeopleStore | None = None,
+               presence: PresenceLog | None = None,
+               vision: VisionController | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app):
         service.hub.loop = asyncio.get_running_loop()
@@ -178,6 +205,61 @@ def create_app(service: Service, api_token: str = "", cors_origins: list[str] | 
     @app.post("/api/v1/commands")
     def post_command(cmd: CommandIn):
         return {"delivered": service.command(cmd)}
+
+    @app.get("/api/v1/people")
+    def get_people():
+        """Liste blanche : individus declares dans le dashboard et empreintes enregistrees en CLI."""
+        return people.list() if people else []
+
+    @app.post("/api/v1/people", status_code=201, dependencies=[Depends(require_token)])
+    def post_person(person: PersonIn):
+        if people is None:
+            raise HTTPException(503, "Liste des individus indisponible sur ce backend")
+        try:
+            return people.save(person.name, person.role, person.notes, person.photo,
+                               previous=person.previous or "")
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+
+    @app.delete("/api/v1/people/{name}", dependencies=[Depends(require_token)])
+    def delete_person(name: str):
+        """Droit a l'effacement (RGPD) : retire les donnees et l'empreinte faciale."""
+        if people is None or not people.delete(name):
+            raise HTTPException(404, "individu inconnu")
+        return {"deleted": name}
+
+    @app.get("/api/v1/presence")
+    def get_presence(limit: int = 50):
+        """Journal de presence, du plus recent au plus ancien."""
+        return presence.recent(limit) if presence else []
+
+    @app.post("/api/v1/presence", status_code=201, dependencies=[Depends(require_token)])
+    def post_presence(event: PresenceIn):
+        if presence is None:
+            raise HTTPException(503, "Journal de presence indisponible sur ce backend")
+        try:
+            saved = presence.add(event.kind, event.person, event.ts)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+        service.hub.broadcast({"type": "presence", **saved})
+        return saved
+
+    @app.get("/api/v1/vision")
+    def get_vision():
+        """Etat du script de vision. La webcam est exclusive : l'arreter la libere."""
+        return vision.status() if vision else {"running": False, "available": False}
+
+    @app.post("/api/v1/vision/start", dependencies=[Depends(require_token)])
+    def start_vision():
+        if vision is None:
+            raise HTTPException(503, "Pilotage de la vision indisponible sur ce backend")
+        return vision.start()
+
+    @app.post("/api/v1/vision/stop", dependencies=[Depends(require_token)])
+    def stop_vision():
+        if vision is None:
+            raise HTTPException(503, "Pilotage de la vision indisponible sur ce backend")
+        return vision.stop()
 
     @app.post("/api/v1/test/{kind}", status_code=201)
     def test_alert(kind: str):

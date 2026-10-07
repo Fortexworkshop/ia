@@ -12,6 +12,7 @@ from pathlib import Path
 from sentinel import config as sentinel_config  # charge aussi le .env de ce depot
 
 ROOT = sentinel_config.ROOT
+DATA_DIR = sentinel_config.DATA_DIR  # donnees locales : base SQLite des individus, empreintes faciales
 
 
 def _infra_env() -> dict[str, str]:
@@ -54,6 +55,7 @@ MQTT_PASSWORD = sentinel_config.MQTT_PASSWORD
 MQTT_CA_CERT = sentinel_config.MQTT_CA_CERT
 SENSORS_TOPIC = sentinel_config.MQTT_TOPIC  # plusieurs topics separes par des virgules
 COMMANDS_TOPIC = "sentinel/{node_id}/commands"
+STREAM_PORT = sentinel_config.STREAM_PORT  # port du flux MJPEG, partage par la vision et son pilotage
 NODE_ID = sentinel_config.NODE_ID
 
 # Meme jeton que celui utilise par l'IA pour POST /api/v1/alerts (vide = pas d'authentification).

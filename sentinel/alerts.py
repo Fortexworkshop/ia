@@ -14,6 +14,10 @@ Format par defaut (a ajuster avec l'equipe DEV) :
 
 L'envoi se fait dans un thread pour ne jamais bloquer la boucle video.
 Sans SENTINEL_API_URL, les alertes sont seulement affichees (mode hors ligne).
+
+PresenceClient (meme mecanique) envoie le journal de presence vers POST /api/v1/presence :
+`{"node_id", "kind", "person", "message", "timestamp"}` avec `kind` : "detection" (une personne
+se presente), "entree" (pouce en haut), "pause" / "reprise" (pouce de cote), "sortie" (pouce en bas).
 """
 
 from __future__ import annotations
@@ -28,6 +32,7 @@ from datetime import datetime
 from enum import Enum
 
 ALERTS_PATH = "/api/v1/alerts"
+PRESENCE_PATH = "/api/v1/presence"
 
 
 class Severity(str, Enum):
@@ -52,11 +57,13 @@ def build_alert(node_id: str, source: str, alert_type: str, severity: Severity, 
 
 class AlertClient:
     def __init__(self, base_url: str = "", token: str = "", ca_cert: str = "",
-                 timeout: float = 3.0, retries: int = 2):
-        self.url = base_url.rstrip("/") + ALERTS_PATH if base_url else ""
+                 timeout: float = 3.0, retries: int = 2, path: str = ALERTS_PATH,
+                 label: str = "ALERTE"):
+        self.url = base_url.rstrip("/") + path if base_url else ""
         self.token = token
         self.timeout = timeout
         self.retries = retries
+        self.label = label
         self.context = ssl.create_default_context(cafile=ca_cert) if ca_cert else None
         self.sent = 0
         self.failed = 0
@@ -66,16 +73,20 @@ class AlertClient:
 
     def send(self, alert: dict) -> None:
         """Non bloquant : si la file est pleine (API tombee), l'alerte la plus ancienne est perdue."""
-        print(f"[ALERTE] {alert['severity'].upper()} {alert['type']} : {alert['message']}")
+        print(f"[{self.label}] {alert['severity'].upper()} {alert['type']} : {alert['message']}")
+        self._enqueue(alert)
+
+    def _enqueue(self, payload: dict) -> None:
+        """Non bloquant : si la file est pleine (API tombee), le message le plus ancien est perdu."""
         if not self.url:
             return
         try:
-            self._queue.put_nowait(alert)
+            self._queue.put_nowait(payload)
         except queue.Full:
             self._queue.get_nowait()
             self._queue.task_done()
             self.failed += 1
-            self._queue.put_nowait(alert)
+            self._queue.put_nowait(payload)
 
     def post(self, alert: dict) -> bool:
         """Envoi synchrone avec quelques tentatives. Renvoie True si l'API a accepte (2xx)."""
@@ -109,3 +120,34 @@ class AlertClient:
         done = threading.Event()
         threading.Thread(target=lambda: (self._queue.join(), done.set()), daemon=True).start()
         done.wait(timeout)
+
+
+def build_presence(node_id: str, kind: str, person: str = "", message: str = "",
+                   when: datetime | None = None) -> dict:
+    """Evenement de presence : `kind` vaut "detection", "entree" ou "sortie"."""
+    when = when or datetime.now().astimezone()
+    return {
+        "node_id": node_id,
+        "kind": kind,
+        "person": person,
+        "message": message or {"detection": "Une personne se presente",
+                               "entree": "Entree (pouce en haut)",
+                               "pause": "Pause (pouce de cote)",
+                               "reprise": "Reprise apres pause (pouce de cote)",
+                               "sortie": "Sortie (pouce en bas)"}.get(kind, kind),
+        "timestamp": when.isoformat(timespec="seconds"),
+    }
+
+
+class PresenceClient(AlertClient):
+    """Journal de presence de la vision : POST /api/v1/presence (meme file d'attente et TLS)."""
+
+    def __init__(self, base_url: str = "", token: str = "", ca_cert: str = "",
+                 timeout: float = 3.0, retries: int = 2):
+        super().__init__(base_url, token, ca_cert, timeout, retries,
+                         path=PRESENCE_PATH, label="PRESENCE")
+
+    def send(self, event: dict) -> None:
+        who = event.get("person") or "personne inconnue"
+        print(f"[{self.label}] {event['message']} : {who}")
+        self._enqueue(event)

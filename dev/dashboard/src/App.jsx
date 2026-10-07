@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import Supervision from './pages/Supervision.jsx'
+import Presence from './pages/Presence.jsx'
 import People from './pages/People.jsx'
 import Camera from './pages/Camera.jsx'
 
 const ROUTES = [
   { path: '/', label: 'Supervision', Page: Supervision },
+  { path: '/presence', label: 'Présence', Page: Presence },
   { path: '/personnes', label: 'Individus', Page: People },
   { path: '/camera', label: 'Caméra', Page: Camera },
 ]

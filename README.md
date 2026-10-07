@@ -12,7 +12,7 @@ historique Git (`git subtree`).
 |---|---|---|
 | `firmware/` | DEV | Firmware C++ de l'ESP8266 : DHT22, MQ-2, PIR, OLED, MQTTS, buzzer et LEDs |
 | `scripts/virtual_esp.py` | DEV | **Boîtier virtuel** (pas de capteurs physiques) : même protocole que le firmware |
-| `dev/dashboard/` | DEV | Dashboard de supervision React : courbes temps réel, alertes, commandes, caméra |
+| `dev/dashboard/` | DEV | Dashboard de supervision React : courbes temps réel, alertes, commandes, caméra, gestion des individus (liste blanche) |
 | `backend/` | DEV | API REST + WebSocket (FastAPI), pont MQTT, stockage PostgreSQL |
 | `sentinel/`, `presence/` | IA | Vision YOLOv8 (intrus), maintenance prédictive (Isolation Forest), contrôle d'accès |
 | `infra/` | INFRA / CYBER | Docker Compose : Mosquitto MQTTS, PostgreSQL, backend ; certificats, comptes MQTT, ACL |
@@ -110,6 +110,12 @@ dashboard ──POST /api/v1/commands──►      └──► MQTTS sentinel/
 | `GET /api/v1/devices` | Statut des boitiers (table `statut_boitier`) |
 | `POST /api/v1/commands` | `{"actuator": "buzzer"\|"led", "state": true}` publie sur MQTT |
 | `POST /api/v1/test/{heat\|gas\|intrusion}` | Alerte de test (plateforme de test du dashboard) |
+| `GET /api/v1/people` | Individus de la liste blanche (données + visage) |
+| `POST /api/v1/people` | Ajoute ou modifie un individu (jeton) : `{"name", "role", "notes", "photo"}` ; `photo` (base64) crée l'empreinte faciale. `previous` pour renommer |
+| `DELETE /api/v1/people/{name}` | Retire un individu (jeton) : données et empreinte faciale (droit à l'effacement) |
+| `GET /api/v1/presence` | Journal de présence : détections et pointages |
+| `POST /api/v1/presence` | Ajoute un événement (jeton) : `{"kind": "detection"\|"entree"\|"pause"\|"reprise"\|"sortie", "person"}` |
+| `GET /api/v1/vision`, `POST /api/v1/vision/start\|stop` | État et pilotage du script de vision (jeton pour les actions) |
 | `WS /ws` | Temps reel, au format du dashboard : `reading`, `alert`, `command-ack` |
 
 Documentation interactive de l'API : http://localhost:8080/docs.
@@ -149,8 +155,19 @@ ESP8266 ─MQTTS─► Mosquitto ─► fenetres glissantes 30 mesures ─► Is
   avant une nouvelle alerte.
 - **Liste blanche (`--whitelist`)** : une personne dont le visage est enregistre (`scripts/enroll.py`)
   est marquee « autorisee » en vert et ne declenche pas d'alerte.
+- **Journal de presence (`--pointage`)** : alimente la page « Presence » du dashboard. Une ligne
+  « personne detectee » a chaque apparition (nom si le visage est reconnu), et un pointage tenu
+  8 images de suite : **entree** (pouce en haut), **pause** puis **reprise** (pouce de cote,
+  alterne comme dans `presence/attendance.py`) ou **sortie** (pouce en bas). `--pointage`
+  active aussi la liste blanche : seules les personnes reconnues peuvent pointer.
+  `--gesture-every N` (defaut 2) ne lance la detection de main qu'une image sur N : sans cela le
+  geste ajoute ~40 ms et la latence depasse l'exigence des 100 ms.
 - **Flux pour le dashboard** : `<img src="http://<serveur>:8081/video">`, la derniere image sur
   `/snapshot.jpg` et l'etat en JSON sur `/status`.
+- **Camera exclusive** : la webcam ne s'ouvre qu'une fois a la fois. La page « Camera » du
+  dashboard propose donc **Arreter / Demarrer la vision** (`POST /api/v1/vision/start|stop`) :
+  arreter le script libere `/dev/video0` pour les autres applications. Sans script en cours, le
+  bouton le relance avec les memes options (`--pointage`).
 - Taille d'inference par defaut `--imgsz 480`, mesuree sur la webcam du PC serveur avec `scripts/bench_vision.py` : 32 ms en moyenne, 34 ms au 95e centile (640 : 124 ms au 95e centile, hors exigence).
 
 ### Plateforme web : agents et test d'image (`sentinel/admin.py`, `scripts/sentinel_admin.py`)
@@ -232,6 +249,7 @@ $env:SENTINEL_API_URL="http://localhost:8001"        # terminal 2 :
 python scripts/sentinel_anomaly.py --simulate        #   incident simule -> alerte ENV_ANOMALY
 python scripts/fake_esp.py --incident 60             #   faux ESP8266 -> Mosquitto (avec sentinel_anomaly.py lance)
 python scripts/sentinel_vision.py                    #   webcam -> alerte INTRUSION (Q pour quitter)
+python scripts/sentinel_vision.py --pointage          #   + journal de presence (entree / sortie)
 ```
 
 Avec le vrai ESP8266 : laisser tourner `sentinel_anomaly.py --record` une dizaine de minutes en

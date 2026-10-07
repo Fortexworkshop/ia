@@ -69,9 +69,14 @@ New-NetFirewallRule -DisplayName "FORTEX bloque MQTT clair" -Direction Inbound -
 
 ## 6. Données personnelles (biométrie)
 
-Seules les empreintes faciales sont conservées (128 nombres par agent), jamais les photos. Le
-traitement est 100 % local, et la plateforme n'est accessible que depuis le PC serveur. Chaque
-agent peut être supprimé de la liste.
+Seules les empreintes faciales sont conservées (128 nombres par agent), jamais les photos : une
+photo envoyée depuis le dashboard ou la plateforme est convertie en empreinte puis oubliée. Le
+traitement est 100 % local, et la plateforme n'est accessible que depuis le PC serveur.
+
+La liste est modifiable depuis le dashboard (page « Individus ») ou en ligne de commande
+(`scripts/enroll.py`) : les deux écrivent dans le même `data/faces.npz`, que la vision
+`--whitelist` relit **à son démarrage**. La suppression (`DELETE /api/v1/people/{name}`) efface
+les données et l'empreinte (droit à l'effacement).
 
 ## 7. Reste à la charge de l'équipe CYBER
 

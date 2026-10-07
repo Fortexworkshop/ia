@@ -17,15 +17,17 @@ export function createApiSource(baseUrl) {
       body: body ? JSON.stringify(body) : undefined,
     }).catch((err) => console.warn('Backend injoignable', err))
 
-  // Historique au chargement : dernières mesures et alertes enregistrées en base.
+  // Historique au chargement : dernières mesures, alertes et presences enregistrees en base.
   async function loadHistory() {
     try {
-      const [readings, alerts] = await Promise.all([
+      const [readings, alerts, presence] = await Promise.all([
         fetch(`${base}/api/v1/readings?limit=60`).then((r) => r.json()),
         fetch(`${base}/api/v1/alerts?limit=30`).then((r) => r.json()),
+        fetch(`${base}/api/v1/presence?limit=50`).then((r) => r.json()),
       ])
       readings.forEach(emit)
       alerts.reverse().forEach(emit) // la page ajoute en tête : du plus ancien au plus récent
+      presence.reverse().forEach((event) => emit({ type: 'presence', ...event }))
     } catch (err) {
       console.warn('Historique indisponible', err)
     }
