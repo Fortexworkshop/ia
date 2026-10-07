@@ -60,9 +60,14 @@ def mqtt_connect(user=None, password=None, tls=True, port=None):
     return bool(rc is not None and not rc.is_failure), str(rc), client
 
 
-def readings_count() -> int:
-    with urllib.request.urlopen(f"{API}/api/v1/readings?limit=1000", timeout=3) as resp:
-        return len(json.load(resp))
+def received(temperature: float) -> bool:
+    """La mesure marquee par cette temperature unique est-elle arrivee au backend ?"""
+    with urllib.request.urlopen(f"{API}/api/v1/readings?limit=50", timeout=3) as resp:
+        return any(abs(r["temp"] - temperature) < 1e-6 for r in json.load(resp))
+
+
+def marker() -> float:
+    return round(10 + int(uuid.uuid4().int % 10000) / 1000, 3)  # valeur unique, ex. 13.472
 
 
 def main() -> None:
@@ -101,28 +106,27 @@ def main() -> None:
     # 5. bout en bout avec le compte du boitier
     esp_user = os.environ.get("ESP_MQTT_USER", "esp8266")
     esp_password = os.environ.get("ESP_MQTT_PASSWORD", "")
-    before = readings_count()
+    mark = marker()
     ok, rc, esp = mqtt_connect(esp_user, esp_password)
     if ok:
-        payload = {"node_id": "AUDIT", "temperature": 21.0, "humidity": 40.0, "gas": 250, "pir": 0}
+        payload = {"node_id": "AUDIT", "temperature": mark, "humidity": 40.0, "gas": 250, "pir": 0}
         esp.publish("sentinel/AUDIT/sensors", json.dumps(payload), qos=1).wait_for_publish(3)
         time.sleep(1.5)
     esp.loop_stop()
     esp.disconnect()
-    after = readings_count()
-    check("Compte boitier : mesure chiffree recue par le backend", ok and after > before, f"connexion {rc}")
+    check("Compte boitier : mesure chiffree recue par le backend", ok and received(mark), f"connexion {rc}")
 
     # 6. ACL : le compte serveur ne peut pas injecter de mesures
-    before = readings_count()
+    mark = marker()
     ok, rc, srv = mqtt_connect(config.MQTT_USER, config.MQTT_PASSWORD)
     if ok:
-        fake = {"node_id": "PIRATE", "temperature": 99.0, "humidity": 1.0, "gas": 1000, "pir": 1}
+        fake = {"node_id": "PIRATE", "temperature": mark, "humidity": 1.0, "gas": 1000, "pir": 1}
         srv.publish("sentinel/PIRATE/sensors", json.dumps(fake), qos=0)
         time.sleep(1.5)
     srv.loop_stop()
     srv.disconnect()
     check("ACL : le compte serveur ne peut pas publier de fausses mesures",
-          ok and readings_count() == before, f"connexion {rc}")
+          ok and not received(mark), f"connexion {rc}")
 
     # 7. API protegee par jeton
     request = urllib.request.Request(f"{API}/api/v1/alerts", method="POST",
