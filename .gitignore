@@ -1,6 +1,6 @@
 models/*.onnx
 models/*.task
-data/
+/data/
 __pycache__/
 *.pyc
 models/*.pt
