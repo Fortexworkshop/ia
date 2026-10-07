@@ -1,14 +1,16 @@
 # Lance tout le systeme FORTEX sur le PC Serveur Local, chaque brique dans sa fenetre.
 #
 # Usage : powershell -ExecutionPolicy Bypass -File scripts\start.ps1 [options]
-#   -FakeEsp     ajoute un faux ESP8266 (tant que le vrai boitier n'est pas pret)
-#   -Incident 60 avec -FakeEsp : derive surchauffe + gaz apres 60 mesures
+#   (defaut)     boitier virtuel http://localhost:8090 (capteurs virtuels, meme protocole que l'ESP8266)
+#   -RealEsp     pas de boitier virtuel : un vrai ESP8266 est branche
+#   -FakeEsp     faux ESP en ligne de commande (sans interface) ; -Incident 60 : derive apres 60 mesures
 #   -Admin       lance la plateforme d'acces / pointage au lieu de la vision (une seule webcam)
 #   -NoVision    ne lance pas la vision
 #   -Infra / -Dashboard  chemins de infra/ et dev/dashboard (par defaut : dans ce depot)
 #   -DryRun      affiche les commandes sans rien lancer
 
 param(
+    [switch]$RealEsp,
     [switch]$FakeEsp,
     [int]$Incident = -1,
     [switch]$Admin,
@@ -72,6 +74,9 @@ if ($backendInDocker) {
 
 # 3. IA
 Launch "IA - maintenance predictive" $root "$py scripts/sentinel_anomaly.py"
+if (-not $RealEsp -and -not $FakeEsp) {
+    Launch "Boitier virtuel" $root "$py scripts/virtual_esp.py"
+}
 if ($FakeEsp) {
     $opt = if ($Incident -ge 0) { " --incident $Incident" } else { "" }
     Launch "Faux ESP8266" $root "$py scripts/fake_esp.py --interval 1$opt"
@@ -92,4 +97,5 @@ if (Test-Path (Join-Path $Dashboard "package.json")) {
 
 Write-Host "`nDashboard : http://localhost:5173   Flux camera : http://localhost:8081/video" -ForegroundColor Green
 Write-Host "API backend : http://localhost:8080/docs" -ForegroundColor Green
+if (-not $RealEsp -and -not $FakeEsp) { Write-Host "Boitier virtuel : http://localhost:8090" -ForegroundColor Green }
 if ($Admin) { Write-Host "Plateforme d'acces : http://localhost:5000" -ForegroundColor Green }

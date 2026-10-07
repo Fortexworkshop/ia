@@ -1,5 +1,10 @@
 # Firmware SENTINEL-X (ESP8266 NodeMCU v2)
 
+> **Pas de capteurs physiques dans l'équipe** : pour la démo, le boîtier est remplacé par le
+> **boîtier virtuel** (`scripts/virtual_esp.py`, http://localhost:8090). Celui-ci reproduit ce
+> firmware : mêmes topics, même compte MQTTS, mêmes commandes et même alarme locale. Le firmware
+> ci-dessous compile (vérifié) et est prêt à être flashé si du matériel est fourni.
+
 Projet PlatformIO en C++ (framework Arduino) : `firmware/sentinel-x/`.
 
 ## Rôle

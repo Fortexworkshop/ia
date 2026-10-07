@@ -116,6 +116,14 @@ des deux capteurs ne ressemble à aucune fenêtre normale.
 
 L'IA prévient donc **plus de 6 minutes avant** qu'une alarme à seuil ne sonne.
 
+**Validation sur le boîtier virtuel** (`sentinel/virtual_box.py`), qui remplace les capteurs
+physiques, mesurée sur 20 boîtiers avec un bruit de capteur différent à chaque fois :
+
+| Cas | Résultat |
+|---|---|
+| Fonctionnement normal, 30 minutes par boîtier | **0 fausse alerte sur 20** |
+| Scénario « surchauffe lente » | **20 détections sur 20**, vers **25 °C** et un gaz à environ 340, alors que les seuils critiques sont à 40 °C et 600 |
+
 > Le backend conserve un **garde-fou de dernier recours** (`SafetyAlarm`) qui sonne quand le seuil
 > critique est *déjà* atteint. Il est distinct de l'IA et sert à garder le site protégé si le
 > service d'IA s'arrête.
@@ -165,7 +173,7 @@ Le secret (jeton de l'API) reste dans `.env`, exclu de Git.
 
 | Limite | Piste |
 |---|---|
-| Modèle prédictif entraîné sur données simulées tant que le boîtier n'est pas prêt | Réentraîner sur les mesures réelles (`--record`) |
+| Pas de capteurs physiques : modèle entraîné et validé sur des données simulées (boîtier virtuel) | Avec du matériel : réentraîner sur les mesures réelles (`--record`) |
 | YOLOv8n pré-entraîné, non spécialisé (affiche ou écran montrant une personne = détection) | Fine-tuning sur images du site ; zone d'intérêt |
 | Reconnaissance faciale sensible à l'éclairage et à l'angle | 3 à 5 photos variées par agent |
 | Flux MQTT et vidéo encore en clair | MQTTS (port 8883) et HTTPS : code déjà prêt, certificats à fournir par CYBER |

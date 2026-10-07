@@ -11,6 +11,7 @@ historique Git (`git subtree`).
 | Dossier | Filière | Contenu |
 |---|---|---|
 | `firmware/` | DEV | Firmware C++ de l'ESP8266 : DHT22, MQ-2, PIR, OLED, MQTTS, buzzer et LEDs |
+| `scripts/virtual_esp.py` | DEV | **Boîtier virtuel** (pas de capteurs physiques) : même protocole que le firmware |
 | `dev/dashboard/` | DEV | Dashboard de supervision React : courbes temps réel, alertes, commandes, caméra |
 | `backend/` | DEV | API REST + WebSocket (FastAPI), pont MQTT, stockage PostgreSQL |
 | `sentinel/`, `presence/` | IA | Vision YOLOv8 (intrus), maintenance prédictive (Isolation Forest), contrôle d'accès |
@@ -33,7 +34,7 @@ Prérequis : Python 3.11, Git for Windows, Docker Desktop (démarré), Node.js.
 git clone https://github.com/Fortexworkshop/ia.git fortex
 cd fortex
 powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -ServerIp 192.168.10.1
-powershell -ExecutionPolicy Bypass -File scripts\start.ps1 -FakeEsp -Incident 60
+powershell -ExecutionPolicy Bypass -File scripts\start.ps1
 ```
 
 La commande `setup.ps1` est à lancer **une seule fois**. Elle installe les dépendances et les
@@ -41,21 +42,32 @@ modèles, entraîne l'IA, puis génère les secrets, la CA TLS et les comptes MQ
 `.env` et la configuration du firmware (via `scripts/configure.py`). Elle lance ensuite les tests
 et démarre Docker.
 
-`start.ps1` lance Docker, puis l'IA (anomalies et vision), le dashboard et, avec `-FakeEsp`, un
-faux boîtier. Ensuite :
+`start.ps1` lance Docker, puis le **boîtier virtuel**, l'IA (anomalies et vision) et le
+dashboard. Ensuite :
 
 | Adresse | Contenu |
 |---|---|
 | http://localhost:5173 | Dashboard de supervision |
+| http://localhost:8090 | **Boîtier virtuel** : capteurs réglables, scénarios d'incident, OLED, LEDs, buzzer |
 | http://localhost:8080/docs | API du backend |
 | http://localhost:8081/video | Flux webcam annoté par l'IA |
 | http://localhost:5000 | Contrôle d'accès (`start.ps1 -Admin`) |
 
-**Avec le vrai boîtier** :
+**Capteurs virtuels** : l'équipe n'a pas de capteurs physiques. Le boîtier virtuel
+(`scripts/virtual_esp.py`, `sentinel/virtual_box.py`) remplace l'ESP8266 et reproduit son
+firmware. Il se connecte en MQTTS avec le compte `esp8266`, publie sur `sentinel/<id>/sensors`,
+reçoit les commandes buzzer et LED du dashboard et déclenche l'alarme gaz locale. Les mesures ont
+le bruit d'un vrai DHT22 ou MQ-2.
+
+Scénario de démonstration : cliquer sur **Surchauffe lente** sur http://localhost:8090. L'IA
+alerte vers 25 °C, bien avant le seuil critique de 40 °C. Le bouton **Fuite de gaz** déclenche,
+lui, l'alarme locale.
+
+**Avec un vrai boîtier** (si du matériel est disponible) :
 1. Renseigner le Wi-Fi dans `firmware/sentinel-x/include/sentinel_config.h`, qui est généré
    automatiquement.
 2. Flasher avec `.venv\Scripts\pio run -t upload`, depuis `firmware/sentinel-x`.
-3. Lancer `start.ps1` sans `-FakeEsp`.
+3. Lancer `start.ps1 -RealEsp`.
 
 **Vérifications** :
 - `python -m pytest -q` : tests automatisés ;
