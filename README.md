@@ -68,6 +68,8 @@ powershell -ExecutionPolicy Bypass -File scripts\start.ps1 -FakeEsp -Incident 60
 vision, dashboard et, avec `-FakeEsp`, un faux ESP8266. `-Admin` lance la plateforme d'acces a la
 place de la vision (une seule webcam). `-DryRun` affiche les commandes sans rien lancer.
 
+**Documentation IA pour le dossier** : [docs/IA.md](docs/IA.md) (modeles, mesures, resultats, limites).
+
 ### Branchement avec les autres depots
 
 - **infra** : `docker compose up -d` dans le depot infra, puis `sentinel_anomaly.py` ecoute
