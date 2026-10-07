@@ -67,7 +67,7 @@ def received(temperature: float) -> bool:
 
 
 def marker() -> float:
-    return round(10 + int(uuid.uuid4().int % 10000) / 1000, 3)  # valeur unique, ex. 13.472
+    return round(10 + int(uuid.uuid4().int % 1000) / 100, 2)  # unique, 2 decimales (NUMERIC(5,2) en base)
 
 
 def main() -> None:
