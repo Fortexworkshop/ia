@@ -36,6 +36,7 @@ export function createSimulator({ intervalMs = 1000 } = {}) {
   const id = setInterval(tick, intervalMs)
 
   return {
+    label: 'Source simulée active',
     subscribe(cb) {
       listeners.add(cb)
       return () => listeners.delete(cb)

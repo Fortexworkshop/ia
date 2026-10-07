@@ -29,7 +29,9 @@ export default function Supervision() {
     const source = createSource()
     sourceRef.current = source
     const unsub = source.subscribe((msg) => {
-      if (msg.type === 'reading') {
+      if (msg.type === 'status') {
+        setOnline(msg.online)
+      } else if (msg.type === 'reading') {
         setOnline(true)
         setReadings((r) => [...r.slice(-(HISTORY - 1)), msg])
       } else if (msg.type === 'alert') {
@@ -59,7 +61,7 @@ export default function Supervision() {
   return (
     <div className="page">
       <p role="status" className={online ? 'badge ok' : 'badge'}>
-        {online ? 'Source simulée active' : 'En attente de données'}
+        {online ? sourceRef.current?.label ?? 'Source active' : 'En attente de données'}
       </p>
 
       <section className="grid">
@@ -116,7 +118,8 @@ export default function Supervision() {
             {alerts.map((a, i) => (
               <li key={a.ts + a.kind + i} className={a.level}>
                 {time(a.ts)} · <b>{a.kind}</b> {a.value}
-                {a.unit} · {LEVELS[a.level]}
+                {a.unit} · {LEVELS[a.level] ?? a.level}
+                {a.message ? ` · ${a.message}` : ''}
               </li>
             ))}
           </ul>
