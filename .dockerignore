@@ -7,3 +7,5 @@ models/
 .pytest_cache/
 firmware/
 docs/
+infra/
+dev/

@@ -17,6 +17,7 @@ ROOT = sentinel_config.ROOT
 def _infra_env() -> dict[str, str]:
     explicit = os.environ.get("FORTEX_INFRA_ENV")
     candidates = [Path(explicit)] if explicit else [
+        ROOT / "infra" / ".env",
         ROOT.parent / "infra" / ".env",
         ROOT.parent / "fortex" / "infra" / ".env",
     ]

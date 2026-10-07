@@ -12,3 +12,4 @@ models/*.joblib
 *.crt
 .pytest_cache/
 .vscode/
+dev/dashboard/package-lock.json

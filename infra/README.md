@@ -40,7 +40,7 @@ docker compose up -d --build         # mosquitto + postgres + backend (http://lo
 docker compose --profile simulation up -d   # optionnel : simulateur IoT
 ```
 
-- `IA_DIR` (dans `.env`) : chemin du depot `ia`, qui contient le `Dockerfile` du backend.
+- `IA_DIR` (dans `.env`) : racine du depot (`..`), qui contient `backend/Dockerfile`.
 - `certs/ca.crt` est a copier dans le firmware ESP8266 et a indiquer a l'IA (`SENTINEL_MQTT_CA_CERT`).
 - Secrets jamais commites : `.env`, `certs/`, `mqtt-users.env`, `mosquitto/config/passwd`.
 - Verification : `python scripts/check_security.py` dans le depot `ia` (7 controles).

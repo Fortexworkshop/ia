@@ -1,5 +1,8 @@
-# Installation de la brique IA sur le PC Serveur Local (une seule fois).
-# Usage : powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
+# Installation complete de FORTEX sur le PC Serveur Local (une seule fois).
+# Usage : powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 [-ServerIp 192.168.10.1]
+# Prerequis : Python 3.11, Git for Windows (Git Bash), Docker Desktop demarre, Node.js
+
+param([string]$ServerIp = "192.168.10.1")
 
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
@@ -38,32 +41,28 @@ if (Test-Path models\anomaly.joblib) {
     Check "entrainement"
 }
 
-Step "Configuration"
-if (Test-Path .env) {
-    Write-Host ".env deja present"
-} else {
-    Copy-Item .env.example .env
-    Write-Host ".env cree a partir de .env.example"
-}
+Step "Configuration (secrets, certificats TLS, comptes MQTT, .env, firmware)"
+& $py scripts/configure.py --server-ip $ServerIp
+Check "configuration"
 
 Step "Tests"
 & $py -m pytest -q
 Check "tests"
 
-$parent = Split-Path $root -Parent
-$dashboard = @((Join-Path $parent "dev\dashboard"), (Join-Path $parent "fortex\dev\dashboard")) |
-    Where-Object { Test-Path $_ } | Select-Object -First 1
-if ($dashboard) {
-    Step "Dashboard ($dashboard)"
-    if (-not (Test-Path (Join-Path $dashboard ".env"))) {
-        "VITE_API_URL=http://localhost:8080`nVITE_CAMERA_URL=http://localhost:8081/video" | Set-Content -Encoding ascii (Join-Path $dashboard ".env")
-        Write-Host ".env du dashboard cree (camera : http://localhost:8081/video)"
-    }
+$dashboard = Join-Path $root "dev\dashboard"
+if (Test-Path (Join-Path $dashboard "package.json")) {
+    Step "Dashboard : dependances Node"
     if (-not (Test-Path (Join-Path $dashboard "node_modules"))) {
         Push-Location $dashboard
         if (Get-Command pnpm -ErrorAction SilentlyContinue) { pnpm install } else { npm install --no-audit --no-fund }
         Pop-Location
-    }
+    } else { Write-Host "deja installees" }
 }
+
+Step "Stack Docker (Mosquitto MQTTS, PostgreSQL, backend)"
+Push-Location (Join-Path $root "infra")
+docker compose up -d --build
+Pop-Location
+Check "docker compose"
 
 Write-Host "`nInstallation terminee. Lancement : powershell -ExecutionPolicy Bypass -File scripts\start.ps1" -ForegroundColor Green

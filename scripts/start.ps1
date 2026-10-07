@@ -5,8 +5,7 @@
 #   -Incident 60 avec -FakeEsp : derive surchauffe + gaz apres 60 mesures
 #   -Admin       lance la plateforme d'acces / pointage au lieu de la vision (une seule webcam)
 #   -NoVision    ne lance pas la vision
-#   -Infra / -Dashboard  chemins des depots infra et dev
-#                (par defaut : a cote de ce depot, ou dans un dossier "fortex" a cote)
+#   -Infra / -Dashboard  chemins de infra/ et dev/dashboard (par defaut : dans ce depot)
 #   -DryRun      affiche les commandes sans rien lancer
 
 param(
@@ -22,7 +21,7 @@ param(
 $root = Split-Path $PSScriptRoot -Parent
 $parent = Split-Path $root -Parent
 function Find($relative) {
-    foreach ($base in @($parent, (Join-Path $parent "fortex"))) {
+    foreach ($base in @($root, $parent, (Join-Path $parent "fortex"))) {
         $candidate = Join-Path $base $relative
         if (Test-Path $candidate) { return $candidate }
     }

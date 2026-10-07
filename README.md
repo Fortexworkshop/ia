@@ -1,30 +1,92 @@
-# FORTEX — Brique IA (SENTINEL-X)
+# FORTEX — SENTINEL-X : l'avant-poste industriel du futur
 
-Partie Intelligence Artificielle du projet FORTEX (Workshop EPSI Bac+4 2026, mission SENTINEL-X).
+Prototype cyber-physique complet du consortium FORTEX (Workshop EPSI Bac+4 2026). Un boîtier
+ESP8266 surveille une micro-centrale AetherCorp. Le PC Serveur Local (option B) centralise les
+mesures, détecte les intrusions par webcam et prédit les incidents (surchauffe, fuite de gaz),
+le tout en flux chiffrés.
 
-| Depot | Role |
-|---|---|
-| [Fortexworkshop/infra](https://github.com/Fortexworkshop/infra) | Docker Compose : Mosquitto (MQTT) + PostgreSQL |
-| [Fortexworkshop/dev](https://github.com/Fortexworkshop/dev) | Dashboard de supervision (React) |
-| **Fortexworkshop/ia** (ce depot) | Vision (intrus), maintenance predictive, controle d'acces du personnel |
+**Ce dépôt contient tout le projet.** Les dépôts `infra` et `dev` y sont intégrés avec leur
+historique Git (`git subtree`).
 
-Contenu :
-
-1. **`sentinel/`** : detection d'intrus sur la webcam (YOLOv8) et maintenance predictive sur les
-   capteurs de l'ESP8266 (Isolation Forest). S'y ajoute la plateforme web de **controle d'acces** :
-   liste blanche du personnel autorise, pointage des entrees et sorties sur site, test d'une image.
-2. **`presence/`** : reconnaissance faciale (YuNet + SFace), lecture du geste du pouce (MediaPipe)
-   et registre de presence (SQLite). Ce code est utilise par la plateforme web et par la liste
-   blanche de la vision.
-
-### Backend (`backend/`, `scripts/backend.py`)
-
-Le backend relie toutes les briques. Il tourne sur le PC serveur, sur le port 8080.
+| Dossier | Filière | Contenu |
+|---|---|---|
+| `firmware/` | DEV | Firmware C++ de l'ESP8266 : DHT22, MQ-2, PIR, OLED, MQTTS, buzzer et LEDs |
+| `dev/dashboard/` | DEV | Dashboard de supervision React : courbes temps réel, alertes, commandes, caméra |
+| `backend/` | DEV | API REST + WebSocket (FastAPI), pont MQTT, stockage PostgreSQL |
+| `sentinel/`, `presence/` | IA | Vision YOLOv8 (intrus), maintenance prédictive (Isolation Forest), contrôle d'accès |
+| `infra/` | INFRA / CYBER | Docker Compose : Mosquitto MQTTS, PostgreSQL, backend ; certificats, comptes MQTT, ACL |
+| `scripts/` | tous | Installation, lancement, simulateurs, contrôle de sécurité |
+| `docs/` | tous | Documentation du dossier : IA, matrice de sécurité |
 
 ```
-ESP8266 ──MQTT sentinel/<id>/sensors──► backend ──► PostgreSQL (tables du depot infra)
+ESP8266 ──MQTTS 8883──► Mosquitto ──► backend (Docker) ──► PostgreSQL
+ capteurs, OLED            │   ▲          │  ▲ POST /api/v1/alerts
+ buzzer, LEDs ◄──commandes─┘   │          │  └──── IA : maintenance prédictive (Isolation Forest)
+                               │          └──WebSocket──► dashboard React ◄── flux vidéo ── IA : vision YOLOv8 ◄── webcam USB
+```
+
+## Installation et lancement (PC Serveur Local, Windows)
+
+Prérequis : Python 3.11, Git for Windows, Docker Desktop (démarré), Node.js.
+
+```powershell
+git clone https://github.com/Fortexworkshop/ia.git fortex
+cd fortex
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -ServerIp 192.168.10.1
+powershell -ExecutionPolicy Bypass -File scripts\start.ps1 -FakeEsp -Incident 60
+```
+
+La commande `setup.ps1` est à lancer **une seule fois**. Elle installe les dépendances et les
+modèles, entraîne l'IA, puis génère les secrets, la CA TLS et les comptes MQTT, ainsi que les
+`.env` et la configuration du firmware (via `scripts/configure.py`). Elle lance ensuite les tests
+et démarre Docker.
+
+`start.ps1` lance Docker, puis l'IA (anomalies et vision), le dashboard et, avec `-FakeEsp`, un
+faux boîtier. Ensuite :
+
+| Adresse | Contenu |
+|---|---|
+| http://localhost:5173 | Dashboard de supervision |
+| http://localhost:8080/docs | API du backend |
+| http://localhost:8081/video | Flux webcam annoté par l'IA |
+| http://localhost:5000 | Contrôle d'accès (`start.ps1 -Admin`) |
+
+**Avec le vrai boîtier** :
+1. Renseigner le Wi-Fi dans `firmware/sentinel-x/include/sentinel_config.h`, qui est généré
+   automatiquement.
+2. Flasher avec `.venv\Scripts\pio run -t upload`, depuis `firmware/sentinel-x`.
+3. Lancer `start.ps1` sans `-FakeEsp`.
+
+**Vérifications** :
+- `python -m pytest -q` : tests automatisés ;
+- `python scripts/check_security.py` : 7 contrôles de sécurité (TLS, comptes, ACL, jeton) ;
+- `python scripts/bench_vision.py` : latence de la vision (< 100 ms).
+
+**Documentation du dossier** :
+- [docs/IA.md](docs/IA.md) : IA, modèles, mesures et résultats ;
+- [docs/SECURITE.md](docs/SECURITE.md) : matrice de sécurité ;
+- [firmware/README.md](firmware/README.md) : firmware et schéma de câblage ;
+- [infra/README.md](infra/README.md) : infrastructure.
+
+**Secrets** : aucun dans Git. `.env`, `infra/.env`, `infra/certs/`, `infra/mqtt-users.env` et
+`sentinel_config.h` sont générés localement et ignorés.
+
+**Mettre à jour depuis les dépôts d'origine**, si l'équipe y travaille encore :
+`git subtree pull --prefix=infra https://github.com/Fortexworkshop/infra.git main`, et de même
+pour `dev` avec `--prefix=dev`.
+
+---
+
+## Backend (`backend/`)
+
+Le backend relie toutes les briques. Il tourne dans Docker (service `backend` de
+`infra/docker-compose.yml`), sur le port 8080. Pour le developpement, il peut aussi tourner hors
+Docker avec `python scripts/backend.py`.
+
+```
+ESP8266 ──MQTTS sentinel/<id>/sensors──► backend ──► PostgreSQL (tables du depot infra)
 IA ──POST /api/v1/alerts (Bearer)────►    │    ──► WebSocket /ws ──► dashboard
-dashboard ──POST /api/v1/commands──►      └──► MQTT sentinel/<id>/commands ──► ESP8266 (buzzer, LED)
+dashboard ──POST /api/v1/commands──►      └──► MQTTS sentinel/<id>/commands ──► ESP8266 (buzzer, LED)
 ```
 
 | Route | Role |
@@ -40,10 +102,10 @@ dashboard ──POST /api/v1/commands──►      └──► MQTT sentinel/<
 
 Documentation interactive de l'API : http://localhost:8080/docs.
 
-- **Base de donnees** : le nom, l'utilisateur et le mot de passe sont lus dans le `.env` du depot
-  infra. Le conteneur PostgreSQL doit etre publie sur la machine. En local, ajouter un fichier
-  `docker-compose.override.yml` dans `infra/` avec `ports: ["127.0.0.1:5433:5432"]`. Si la base est
-  injoignable, le backend continue de tourner, avec un stockage en memoire.
+- **Base de donnees** : dans Docker, le backend joint PostgreSQL par le reseau interne (aucun port
+  publie). Hors Docker, il lit les identifiants dans `infra/.env` et attend la base sur
+  `localhost:5433` (`FORTEX_DB_HOST`, `FORTEX_DB_PORT`). Si la base est injoignable, le backend
+  continue de tourner, avec un stockage en memoire.
 - **Garde-fou de dernier recours** (`SafetyAlarm`, source `garde-fou`) : ce n'est **pas** la
   maintenance predictive. L'IA (Isolation Forest, sans seuil statique) alerte *avant* l'incident.
   Le garde-fou, lui, sonne quand le seuil critique est *deja* atteint (40 °C, gaz 600, mouvement
@@ -51,37 +113,11 @@ Documentation interactive de l'API : http://localhost:8080/docs.
   `FORTEX_SAFETY_ALARMS=0`.
 - **Dashboard** : `VITE_API_URL=http://localhost:8080` dans le `.env` du dashboard. Le client
   `src/data/api.js` respecte le meme contrat que le simulateur.
-- **Firmware ESP8266** : publier `{"temperature", "humidity", "gas", "pir"}` sur
-  `sentinel/<node_id>/sensors`, et s'abonner a `sentinel/<node_id>/commands` pour le buzzer et les
-  LEDs.
+- **Formats capteurs acceptes** (`sentinel/sensors.py`) : celui du firmware
+  (`temperature`, `humidity`, `gas`, `pir` sur `sentinel/<id>/sensors`) et celui du simulateur
+  infra (`humidite`, `niveau_gaz`, `presence` sur `fortex/capteurs/mesures`).
 
-### Tout lancer en une commande (PC Serveur Local, Windows)
-
-Placer les depots `infra` et `dev` a cote de ce depot, ou dans un dossier `fortex/` a cote.
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\setup.ps1                     # une seule fois
-powershell -ExecutionPolicy Bypass -File scripts\start.ps1 -FakeEsp -Incident 60
-```
-
-`start.ps1` demarre Docker (infra), puis ouvre une fenetre par brique : maintenance predictive,
-vision, dashboard et, avec `-FakeEsp`, un faux ESP8266. `-Admin` lance la plateforme d'acces a la
-place de la vision (une seule webcam). `-DryRun` affiche les commandes sans rien lancer.
-
-**Documentation pour le dossier** : [docs/IA.md](docs/IA.md) (IA : modeles, mesures, resultats), [docs/SECURITE.md](docs/SECURITE.md) (matrice de securite), [firmware/README.md](firmware/README.md) (firmware ESP8266 et schema de cablage).
-
-**Preuve de securite** : `python scripts/check_security.py` (7 controles : TLS, comptes, ACL, jeton API).
-
-### Branchement avec les autres depots
-
-- **infra** : `docker compose up -d` dans le depot infra, puis `sentinel_anomaly.py` ecoute
-  Mosquitto sur `localhost:1883` (voir `.env.example`).
-- **dev** : dans le `.env` du dashboard, `VITE_CAMERA_URL=http://<ip-serveur>:8081/video`.
-- Alertes : `POST /api/v1/alerts` des que le backend existe. Le format est decrit plus bas.
-- La vision tourne **sur le PC serveur, hors Docker**, car la webcam USB n'est pas accessible
-  depuis Docker Desktop sous Windows.
-
-## SENTINEL-X : brique IA
+## Intelligence artificielle (`sentinel/`)
 
 ```
                        PC Serveur Local
@@ -140,7 +176,7 @@ python scripts/sentinel_admin.py      # puis ouvrir http://localhost:5000
 - `scripts/sentinel_train.py` affiche le taux de detection, les fausses alertes et l'**avance sur le
   seuil critique** (40 °C ou gaz 600), mesures sur des incidents simules.
 
-### Contrats d'interface (format par defaut, a valider avec DEV et INFRA)
+### Contrats d'interface
 
 **Capteurs : ESP8266 vers MQTT**, topic `sentinel/<node_id>/sensors`, toutes les 2 s :
 ```json
@@ -164,12 +200,13 @@ Pour `source = "anomaly"`, `type = "ENV_ANOMALY"` et `data` contient `score`, `r
 
 ### Configuration
 
-Toute la configuration passe par des variables d'environnement. Copier `.env.example` en `.env`
-(ignore par git) : URL de l'API, token, certificat CA, broker MQTT. Si `SENTINEL_MQTT_CA_CERT` est
+Toute la configuration passe par des variables d'environnement, dans `.env` (ignore par git).
+Ce fichier est genere par `scripts/configure.py`, et documente dans `.env.example` : URL de l'API,
+jeton, certificat CA, broker MQTT. Si `SENTINEL_MQTT_CA_CERT` est
 defini, la connexion MQTT passe en TLS. Sans `SENTINEL_API_URL`, les alertes sont seulement
 affichees en console.
 
-### Demarrage rapide (Windows)
+### Lancer les briques IA une par une (developpement)
 
 ```powershell
 py -3.11 -m venv .venv ; .venv\Scripts\activate
@@ -178,8 +215,8 @@ python -m pytest -q
 
 python scripts/download_models.py                   # modeles pre-entraines (dont YOLOv8n)
 python scripts/sentinel_train.py                     # entraine et evalue le modele (donnees simulees)
-python scripts/mock_api.py                           # terminal 1 : fausse API qui affiche les alertes
-$env:SENTINEL_API_URL="http://localhost:8000"        # terminal 2 :
+python scripts/mock_api.py --port 8001               # terminal 1 : fausse API qui affiche les alertes
+$env:SENTINEL_API_URL="http://localhost:8001"        # terminal 2 :
 python scripts/sentinel_anomaly.py --simulate        #   incident simule -> alerte ENV_ANOMALY
 python scripts/fake_esp.py --incident 60             #   faux ESP8266 -> Mosquitto (avec sentinel_anomaly.py lance)
 python scripts/sentinel_vision.py                    #   webcam -> alerte INTRUSION (Q pour quitter)

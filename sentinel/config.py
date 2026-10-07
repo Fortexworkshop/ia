@@ -32,12 +32,20 @@ def _env(name: str, default: str = "") -> str:
     return os.environ.get(name, default)
 
 
+def _path(name: str) -> str:
+    """Chemin de fichier : un chemin relatif est pris depuis la racine du depot."""
+    value = _env(name)
+    if value and not Path(value).is_absolute():
+        value = str((ROOT / value).resolve())
+    return value
+
+
 NODE_ID = _env("SENTINEL_NODE_ID", "SENTINEL-X-01")
 
 # --- API de l'equipe DEV : POST {API_URL}/api/v1/alerts ---------------------
 API_URL = _env("SENTINEL_API_URL")            # ex: https://192.168.10.1:8443 (vide = mode hors ligne)
 API_TOKEN = _env("SENTINEL_API_TOKEN")        # envoye en "Authorization: Bearer ..."
-API_CA_CERT = _env("SENTINEL_API_CA_CERT")    # CA de la stack (certificat auto-signe)
+API_CA_CERT = _path("SENTINEL_API_CA_CERT")    # CA de la stack (certificat auto-signe)
 
 # --- Broker MQTT (capteurs ESP8266) ---------------------------------------
 MQTT_HOST = _env("SENTINEL_MQTT_HOST", "localhost")
@@ -45,7 +53,7 @@ MQTT_PORT = int(_env("SENTINEL_MQTT_PORT", "1883"))
 MQTT_TOPIC = _env("SENTINEL_MQTT_TOPIC", "sentinel/+/sensors,fortex/capteurs/mesures")
 MQTT_USER = _env("SENTINEL_MQTT_USER")
 MQTT_PASSWORD = _env("SENTINEL_MQTT_PASSWORD")
-MQTT_CA_CERT = _env("SENTINEL_MQTT_CA_CERT")  # vide = pas de TLS (a eviter hors debug)
+MQTT_CA_CERT = _path("SENTINEL_MQTT_CA_CERT")  # vide = pas de TLS (a eviter hors debug)
 
 # --- Vision ---------------------------------------------------------------
 YOLO_MODEL = _env("SENTINEL_YOLO_MODEL", str(MODELS_DIR / "yolov8n.pt"))
