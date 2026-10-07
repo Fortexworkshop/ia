@@ -1,0 +1,39 @@
+# Secrets / variables d'environnement
+.env
+.env.*
+!.env.example
+
+# Certificats et clés privées
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Docker local data
+docker-data/
+# Mosquitto local data
+mosquitto/data/
+mosquitto/log/
+
+# Secrets MQTT / TLS generes localement
+certs/
+mqtt-users.env
+mosquitto/config/passwd
+docker-compose.override.yml
