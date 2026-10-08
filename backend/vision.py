@@ -37,9 +37,13 @@ class VisionController:
         return self._process is not None and self._process.poll() is None
 
     def status(self) -> dict:
+        # Un processus termine sans passer par stop() s'est arrete de lui-meme (plantage, webcam
+        # absente, module manquant) : le dashboard doit le dire, pas afficher un flux injoignable muet.
+        exit_code = self._process.poll() if self._process is not None else None
         return {"running": self.running, "available": True, "port": self.port,
                 "pid": self._process.pid if self.running else None,
-                "pointage": self.pointage}
+                "pointage": self.pointage,
+                "crashed": exit_code is not None, "exit_code": exit_code}
 
     def start(self) -> dict:
         with self.lock:

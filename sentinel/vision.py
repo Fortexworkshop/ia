@@ -1,7 +1,7 @@
 """Vision intelligente : detection de presence humaine sur la webcam USB du PC Serveur Local.
 
 webcam ─► bridage 640x480 ─► YOLOv8n (classe "person") ─► [option] liste blanche visages
-       ─► Debouncer (N images de suite + delai) ─► alerte POST /api/v1/alerts
+       ─► IntruderTimer (non reconnu pendant 20 s) ─► alerte POST /api/v1/alerts (buzzer + LED)
        └► flux MJPEG annote pour le dashboard (http://<serveur>:8081/video)
 """
 
@@ -9,11 +9,18 @@ from __future__ import annotations
 
 import json
 import threading
+import unicodedata
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import cv2
 import numpy as np
+
+
+def ascii_text(text: str) -> str:
+    """OpenCV (putText) n'affiche pas les accents : « Chloé » -> « Chloe »."""
+    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+
 
 PERSON_CLASS = 0  # index COCO de "person"
 
@@ -80,13 +87,57 @@ def known_faces_in(recognizer, frame_bgr: np.ndarray) -> list[tuple[str, tuple[i
 GREEN, RED, WHITE = (0, 200, 0), (0, 0, 230), (255, 255, 255)
 
 
+class IntruderTimer:
+    """Alarme quand une personne NON reconnue reste `delay` secondes devant la camera.
+
+    - une personne reconnue (liste blanche) ne fait jamais avancer le compteur ;
+    - une perte breve (< `grace` s : visage tourne, detection manquee) ne remet pas a zero ;
+    - l'alarme reste active tant que l'inconnu est la, avec une nouvelle alerte toutes les `realert` s.
+    """
+
+    def __init__(self, delay: float = 20.0, grace: float = 2.0, realert: float = 60.0):
+        self.delay, self.grace, self.realert = delay, grace, realert
+        self.since: float | None = None      # debut de la presence non reconnue
+        self.last_seen = float("-inf")
+        self.last_alert: float | None = None
+
+    def update(self, unknown_present: bool, now: float) -> bool:
+        """Renvoie True quand une alerte doit partir."""
+        if unknown_present:
+            if self.since is None:
+                self.since = now
+            self.last_seen = now
+        elif self.since is not None and now - self.last_seen > self.grace:
+            self.since, self.last_alert = None, None  # l'inconnu est parti : tout repart de zero
+        if not unknown_present or self.since is None or now - self.since < self.delay:
+            return False  # on n'alerte que sur une image ou l'inconnu est visible
+        if self.last_alert is None or now - self.last_alert >= self.realert:
+            self.last_alert = now
+            return True
+        return False
+
+    def elapsed(self, now: float) -> float:
+        return 0.0 if self.since is None else now - self.since
+
+    @property
+    def alarm(self) -> bool:
+        return self.last_alert is not None
+
+
+ORANGE = (0, 140, 255)
+
+
 def annotate(frame: np.ndarray, detections: list[Detection], latency_ms: float, fps: float,
-             alarm: bool, note: str = "") -> np.ndarray:
+             alarm: bool, note: str = "", labels: dict[str, str] | None = None) -> np.ndarray:
     view = frame.copy()
     for det in detections:
         x1, y1, x2, y2 = det.box
-        color = GREEN if det.authorized else RED
-        label = det.authorized or f"INTRUS {det.confidence:.0%}"
+        # vert = reconnu ; orange = non reconnu (compte a rebours) ; rouge = intrus (alarme)
+        color = GREEN if det.authorized else (RED if alarm else ORANGE)
+        if det.authorized:
+            label = (labels or {}).get(det.authorized, ascii_text(det.authorized))  # nom, sans accents
+        else:
+            label = f"INTRUS {det.confidence:.0%}" if alarm else "Non reconnu"
         cv2.rectangle(view, (x1, y1), (x2, y2), color, 2)
         cv2.putText(view, label, (x1, max(15, y1 - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
     cv2.putText(view, f"{latency_ms:.0f} ms | {fps:.1f} fps", (10, 25),

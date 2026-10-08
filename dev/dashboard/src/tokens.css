@@ -1,97 +1,116 @@
-/* Charte graphique : source unique des valeurs. Voir CHARTE_GRAPHIQUE.md. */
+/* Charte graphique FORTEX : source unique des valeurs. Voir CHARTE_GRAPHIQUE.md.
+   Principe IHM haute performance (ISA-101) : l'état normal est neutre (gris), la couleur est
+   réservée aux écarts (alarme, avertissement, liaison perdue) et à l'interaction (bleu acier). */
 :root {
   color-scheme: dark;
 
-  /* Surfaces */
-  --bg: #101418;
-  --surface: #1a2029;
-  --surface-2: #222a35;
-  --surface-3: #2a3340;
-  --line: rgba(255, 255, 255, 0.12);
-  --control-border: #6f7b8a; /* 3,8:1 sur --surface : contour des commandes (RGAA 3.3) */
+  /* Surfaces : salle de contrôle, sombre et mate */
+  --bg: #0d1117;
+  --surface: #151b23;
+  --surface-2: #1b222c;
+  --surface-3: #242c38;
+  --border: #6b7686;        /* contours de commandes et de champs : >= 3:1 (RGAA 3.3) */
+  --divider: #2a323e;       /* séparateurs décoratifs, non porteurs d'information */
 
   /* Texte */
-  --text: #f2f0ea;
-  --text-muted: #9aa4b2;
-  --on-accent: #101418;
+  --text: #e6e9ee;
+  --text-muted: #a4adba;
+  --text-faint: #8a94a3;    /* légendes : >= 4,5:1 sur --surface */
 
-  /* Accent unique */
-  --accent: #ff9e8a;
+  /* Interaction (marque) : bleu acier, distinct de toutes les couleurs d'état */
+  --accent: #79aaf7;
+  --accent-strong: #a8c8fb;
+  --on-accent: #0d1117;
 
-  /* États */
-  --ok: #7ddc9a;
-  --warning: #f4d35e;
-  --critical: #ff6b6b;
+  /* États : ne servent qu'aux états */
+  --critical: #ff6b66;
+  --critical-bg: #3a1a1c;
+  --warning: #f2b440;
+  --warning-bg: #352812;
+  --ok: #5fcf95;
+  --ok-bg: #12301f;
+  --stale: #c3a6ff;         /* liaison perdue / données périmées */
+  --stale-bg: #2a2140;
 
-  /* Séries de données (une couleur par grandeur, toujours la même) */
-  --series-temp: #c9a0ff;
-  --series-hum: #7fb4ff;
-  --series-gas: #4fd1c5;
-  --series-presence: #e8e8e8;
+  /* Tendance (courbes) : neutre, l'écart prend la couleur de son niveau */
+  --trend: #8a94a3;
+  --trend-now: #e6e9ee;
 
-  /* Typographie */
-  --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --fs-xs: 0.8125rem;
-  --fs-sm: 0.875rem;
-  --fs-base: 0.9375rem;
-  --fs-lg: 1.25rem;
-  --fs-xl: 1.625rem;
-  --fs-value: 2.125rem;
+  /* Typographie : pile système (aucune police à télécharger : LCP et CLS) */
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Segoe UI Mono', Consolas, monospace;
+  --fs-xs: 0.8125rem;   /* 13 */
+  --fs-sm: 0.875rem;    /* 14 */
+  --fs-base: 1rem;      /* 16 */
+  --fs-lg: 1.25rem;     /* 20 */
+  --fs-xl: 1.625rem;    /* 26 */
+  --fs-value: 2.5rem;   /* 40 : valeurs de capteurs */
 
-  /* Espacements (pas de 4 px) */
-  --sp-1: 4px;
-  --sp-2: 8px;
-  --sp-3: 12px;
-  --sp-4: 16px;
-  --sp-6: 24px;
+  /* Espacements : pas de 4 px */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
 
   /* Formes */
   --radius-sm: 6px;
-  --radius: 14px;
-  --radius-pill: 999px;
-  --content-width: 1100px;
+  --radius: 10px;
+  --target: 2.75rem;        /* cible tactile minimale : 44 px */
+  --content-width: 82rem;
+  --sidebar: 15rem;
 }
 
-/* Thème clair : suit la préférence système, sauf choix explicite de l'utilisateur (data-theme). */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme='dark']) {
     color-scheme: light;
-    --bg: #f6f4ef;
+    --bg: #f3f4f6;
     --surface: #ffffff;
-    --surface-2: #f0eee8;
-    --surface-3: #e4e1d9;
-    --line: rgba(0, 0, 0, 0.14);
-    --control-border: #6b7280;
-    --text: #1b1f26;
-    --text-muted: #4b5563;
+    --surface-2: #f6f7f9;
+    --surface-3: #e8ebef;
+    --border: #6f7a89;
+    --divider: #dde1e7;
+    --text: #141820;
+    --text-muted: #48515e;
+    --text-faint: #5b6574;
+    --accent: #1d5bc6;
+    --accent-strong: #123f8c;
     --on-accent: #ffffff;
-    --accent: #b8381f;
-    --ok: #17743a;
-    --warning: #8a6100;
-    --critical: #b42318;
-    --series-temp: #7c3aed;
-    --series-hum: #1d5fd1;
-    --series-gas: #0f766e;
-    --series-presence: #374151;
+    --critical: #b3261e;
+    --critical-bg: #fbe9e8;
+    --warning: #8a5300;
+    --warning-bg: #fdf1dc;
+    --ok: #17703f;
+    --ok-bg: #e3f4ea;
+    --stale: #5b3cc4;
+    --stale-bg: #efeafd;
+    --trend: #6f7a89;
+    --trend-now: #141820;
   }
 }
 :root[data-theme='light'] {
   color-scheme: light;
-  --bg: #f6f4ef;
+  --bg: #f3f4f6;
   --surface: #ffffff;
-  --surface-2: #f0eee8;
-  --surface-3: #e4e1d9;
-  --line: rgba(0, 0, 0, 0.14);
-  --control-border: #6b7280;
-  --text: #1b1f26;
-  --text-muted: #4b5563;
+  --surface-2: #f6f7f9;
+  --surface-3: #e8ebef;
+  --border: #6f7a89;
+  --divider: #dde1e7;
+  --text: #141820;
+  --text-muted: #48515e;
+  --text-faint: #5b6574;
+  --accent: #1d5bc6;
+  --accent-strong: #123f8c;
   --on-accent: #ffffff;
-  --accent: #b8381f;
-  --ok: #17743a;
-  --warning: #8a6100;
-  --critical: #b42318;
-  --series-temp: #7c3aed;
-  --series-hum: #1d5fd1;
-  --series-gas: #0f766e;
-  --series-presence: #374151;
+  --critical: #b3261e;
+  --critical-bg: #fbe9e8;
+  --warning: #8a5300;
+  --warning-bg: #fdf1dc;
+  --ok: #17703f;
+  --ok-bg: #e3f4ea;
+  --stale: #5b3cc4;
+  --stale-bg: #efeafd;
+  --trend: #6f7a89;
+  --trend-now: #141820;
 }

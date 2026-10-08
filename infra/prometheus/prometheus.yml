@@ -1,0 +1,15 @@
+# Prometheus FORTEX : collecte les metriques du backend (GET /metrics) pour Grafana.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: fortex-backend
+    metrics_path: /metrics
+    static_configs:
+      # Le backend publie le port 8080 sur la machine, qu'il tourne hors Docker (branche dev,
+      # pilotage de la webcam) ou dans le conteneur : host.docker.internal couvre les deux cas.
+      - targets: ["host.docker.internal:8080"]
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

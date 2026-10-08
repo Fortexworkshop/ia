@@ -108,3 +108,14 @@ def test_vision_without_controller_is_reported_unavailable():
     client = TestClient(create_app(Service(MemoryStore(), Hub(), None, node_id="SX-01")))
     assert client.get("/api/v1/vision").json() == {"running": False, "available": False}
     assert client.post("/api/v1/vision/start").status_code == 503
+
+
+def test_crash_is_reported_and_stop_is_not_a_crash(root, tmp_path):
+    """Une vision qui s'arrete d'elle-meme (ex. module manquant) est signalee, avec son code."""
+    (root / "scripts" / "sentinel_vision.py").write_text("raise SystemExit(3)\n", encoding="utf-8")
+    vision = controller(root, tmp_path)
+    vision.start()
+    vision._process.wait(timeout=10)
+    status = vision.status()
+    assert status["running"] is False and status["crashed"] is True and status["exit_code"] == 3
+    assert vision.stop()["crashed"] is False  # arret demande : plus de plantage signale

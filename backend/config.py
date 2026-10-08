@@ -60,10 +60,15 @@ NODE_ID = sentinel_config.NODE_ID
 
 # Meme jeton que celui utilise par l'IA pour POST /api/v1/alerts (vide = pas d'authentification).
 API_TOKEN = sentinel_config.API_TOKEN
+# Jeton de l'operateur (dashboard) : individus, vision, buzzer/LED ; pas d'envoi d'alertes.
+DASHBOARD_TOKEN = os.environ.get("FORTEX_DASHBOARD_TOKEN", "")
 CORS_ORIGINS = [o.strip() for o in os.environ.get(
     "FORTEX_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()]
 
 # Garde-fou de dernier recours (backend/messages.py:SafetyAlarm), distinct de l'IA predictive
 SAFETY_ALARMS = os.environ.get("FORTEX_SAFETY_ALARMS", "1") != "0"
+# Alertes qui declenchent automatiquement buzzer + LED rouge du boitier (vide = aucune)
+AUTO_ALARM = tuple(t.strip().upper() for t in os.environ.get("FORTEX_AUTO_ALARM", "INTRUSION").split(",")
+                   if t.strip())
 CRITICAL_TEMP = float(os.environ.get("FORTEX_CRITICAL_TEMP", "40"))
 CRITICAL_GAS = float(os.environ.get("FORTEX_CRITICAL_GAS", "600"))

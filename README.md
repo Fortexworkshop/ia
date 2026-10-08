@@ -49,6 +49,7 @@ dashboard. Ensuite :
 |---|---|
 | http://localhost:5173 | Dashboard de supervision |
 | http://localhost:8090 | **Boîtier virtuel** : capteurs réglables, scénarios d'incident, OLED, LEDs, buzzer |
+| http://localhost:3001 | **Grafana** : capteurs, alertes et MCO du serveur (compte `admin`, mot de passe `GRAFANA_ADMIN_PASSWORD` dans `infra/.env`) |
 | http://localhost:8080/docs | API du backend |
 | http://localhost:8081/video | Flux webcam annoté par l'IA |
 | http://localhost:5000 | Contrôle d'accès (`start.ps1 -Admin`) |
@@ -89,6 +90,28 @@ pour `dev` avec `--prefix=dev`.
 
 ---
 
+## Supervision Grafana (`infra/grafana/`, `infra/prometheus/`)
+
+Le tableau de bord « FORTEX - Supervision SENTINEL-X » est provisionné automatiquement (rafraîchi
+toutes les 5 s). Il a trois sections :
+
+- **Capteurs** (PostgreSQL, compte `grafana_ro` en lecture seule) : courbes de température,
+  d'humidité et de gaz avec les seuils, dernières valeurs, présence PIR.
+- **Alertes** : alertes critiques, intrusions, anomalies prédites par l'IA, répartition par type,
+  dernières alertes.
+- **MCO du PC serveur** (Prometheus, qui collecte `GET /metrics` du backend) : CPU, RAM et disque,
+  état du backend, de MQTTS, de PostgreSQL et de la vision, ancienneté de la dernière mesure,
+  débit MQTT (mesures valides et rejetées) et volume du journal Mosquitto.
+
+## Contrôle d'accès du dashboard
+
+Sans connexion, le dashboard montre l'état du site, les mesures et les alarmes, sans aucune donnée personnelle. Les actions (acquitter, commander buzzer et LED, lancer un exercice, démarrer ou arrêter la vision, gérer les individus) et les données personnelles (individus, présence) demandent le **code opérateur** : la valeur `DASHBOARD_TOKEN` de `infra/.env`, que `configure.py` affiche à la fin.
+
+- Le code est saisi dans « Connexion opérateur » et gardé jusqu'à la fermeture de l'onglet. Il n'est **jamais** compilé dans le JavaScript : une variable `VITE_*` serait lisible par quiconque ouvre la page.
+- Ce code ne permet pas d'émettre des alertes : c'est le rôle du jeton de l'IA (`API_TOKEN`).
+- Les actions sensibles sont tracées dans `data/audit.log` (action, adresse du poste).
+- Le nom d'une personne reconnue s'affiche sur le flux vidéo et dans le journal de présence.
+
 ## Backend (`backend/`)
 
 Le backend relie toutes les briques. Il tourne dans Docker (service `backend` de
@@ -111,7 +134,7 @@ dashboard ──POST /api/v1/commands──►      └──► MQTTS sentinel/
 | `POST /api/v1/commands` | `{"actuator": "buzzer"\|"led", "state": true}` publie sur MQTT |
 | `POST /api/v1/test/{heat\|gas\|intrusion}` | Alerte de test (plateforme de test du dashboard) |
 | `GET /api/v1/people` | Individus de la liste blanche (données + visage) |
-| `POST /api/v1/people` | Ajoute ou modifie un individu (jeton) : `{"name", "role", "notes", "photo"}` ; `photo` (base64) crée l'empreinte faciale. `previous` pour renommer |
+| `POST /api/v1/people` | Ajoute ou modifie un individu (jeton) : `{"name", "notes", "photo"}` ; `photo` (base64) crée l'empreinte faciale. `previous` pour renommer |
 | `DELETE /api/v1/people/{name}` | Retire un individu (jeton) : données et empreinte faciale (droit à l'effacement) |
 | `GET /api/v1/presence` | Journal de présence : détections et pointages |
 | `POST /api/v1/presence` | Ajoute un événement (jeton) : `{"kind": "detection"\|"entree"\|"pause"\|"reprise"\|"sortie", "person"}` |

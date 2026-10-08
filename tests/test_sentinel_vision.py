@@ -45,3 +45,9 @@ def test_stream_server_serves_status_and_snapshot():
         assert jpeg[:2] == b"\xff\xd8"
     finally:
         server.shutdown()
+
+
+def test_ascii_text_for_video_labels():
+    from sentinel.vision import ascii_text
+
+    assert ascii_text("Chloé Lefèvre") == "Chloe Lefevre"  # OpenCV n'affiche pas les accents

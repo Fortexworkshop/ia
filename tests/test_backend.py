@@ -52,8 +52,10 @@ def test_post_alert_requires_token():
     assert res.status_code == 201
     alerts = client.get("/api/v1/alerts").json()
     assert alerts[0]["kind"] == "intrusion" and alerts[0]["id"] == res.json()["id"]
-    assert client.post(f"/api/v1/alerts/{res.json()['id']}/ack").json()["acknowledged"]
-    assert client.post("/api/v1/alerts/999/ack").status_code == 404
+    auth = {"Authorization": "Bearer s3cret"}
+    assert client.post(f"/api/v1/alerts/{res.json()['id']}/ack").status_code == 401  # anonyme refuse
+    assert client.post(f"/api/v1/alerts/{res.json()['id']}/ack", headers=auth).json()["acknowledged"]
+    assert client.post("/api/v1/alerts/999/ack", headers=auth).status_code == 404
 
 
 def test_invalid_alert_rejected():
@@ -93,6 +95,8 @@ def test_websocket_receives_alerts_and_readings():
         assert ws.receive_json()["kind"] == "temperature"
         client.post("/api/v1/alerts", json=INTRUSION)
         assert ws.receive_json()["kind"] == "intrusion"
+        # l'intrusion declenche l'alarme physique : buzzer puis LED
+        assert [ws.receive_json()["cmd"]["actuator"] for _ in range(2)] == ["buzzer", "led"]
         service.ingest_reading("SX-01", {"temp": 22.5, "hum": 40, "gas": 300})  # depuis un autre thread (MQTT)
         msg = ws.receive_json()
         assert msg["type"] == "reading" and msg["temp"] == 22.5
@@ -113,3 +117,85 @@ def test_safety_alarm_can_be_disabled():
 
 def test_alert_without_value_has_no_unit():
     assert alert_message({"type": "ENV_ANOMALY", "data": {}})["unit"] == ""
+
+
+def test_metrics_prometheus_format(tmp_path):
+    service, _ = make()
+    log = tmp_path / "mosquitto.log"
+    log.write_text("x" * 1234)
+    app = create_app(service, mosquitto_log=log)
+    client = TestClient(app)
+    service.ingest_reading("SX-01", {"temperature": 23, "humidity": 45, "gas": 300, "pir": 0})
+    service.ingest_reading("SX-01", {"oops": 1})
+    client.post("/api/v1/alerts", json=INTRUSION)
+    text = client.get("/metrics").text
+    assert "fortex_readings_total 1" in text
+    assert "fortex_readings_rejected_total 1" in text
+    assert 'fortex_alerts_total{type="INTRUSION",source="vision"} 1' in text
+    assert "fortex_commands_total 2" in text          # alarme automatique : buzzer + LED
+    assert "fortex_mosquitto_log_bytes 1234" in text
+    assert "# TYPE fortex_last_reading_age_seconds gauge" in text
+
+
+def test_dashboard_token_is_operator_only():
+    sent = []
+    service, _ = make(publish=lambda t, p: sent.append(t) or True)
+    client = TestClient(create_app(service, api_token="ia-secret", dashboard_token="dash"))
+    ia, dash = {"Authorization": "Bearer ia-secret"}, {"Authorization": "Bearer dash"}
+    command = {"actuator": "buzzer", "state": True}
+    assert client.post("/api/v1/commands", json=command).status_code == 401        # anonyme refuse
+    assert client.post("/api/v1/commands", json=command, headers=dash).status_code == 200
+    assert client.post("/api/v1/commands", json=command, headers=ia).status_code == 200
+    assert client.post("/api/v1/alerts", json=INTRUSION, headers=dash).status_code == 401  # pas d'alerte
+    assert client.post("/api/v1/alerts", json=INTRUSION, headers=ia).status_code == 201
+    assert client.delete("/api/v1/people/x").status_code == 401
+    assert client.delete("/api/v1/people/x", headers=dash).status_code == 404  # autorise, individu absent
+
+
+def test_operator_required_for_sensitive_reads_and_actions():
+    """OWASP A01 : donnees personnelles, acquittement et exercices reserves a l'operateur."""
+    service, _ = make()
+    client = TestClient(create_app(service, api_token="ia-secret", dashboard_token="dash"))
+    dash = {"Authorization": "Bearer dash"}
+    for method, url in [("get", "/api/v1/people"), ("get", "/api/v1/presence"),
+                        ("post", "/api/v1/test/heat"), ("post", "/api/v1/alerts/1/ack")]:
+        assert getattr(client, method)(url).status_code == 401, url
+    assert client.post("/api/v1/test/heat", headers=dash).status_code == 201
+    assert client.post("/api/v1/alerts/1/ack", headers=dash).status_code == 200
+    # les lectures operationnelles restent ouvertes (ecran de supervision sans donnee personnelle)
+    assert client.get("/api/v1/alerts").status_code == 200
+    assert client.get("/health").status_code == 200
+
+
+def test_security_headers_and_no_wildcard_cors():
+    _, app = make()
+    res = TestClient(app).get("/health", headers={"Origin": "http://evil.example"})
+    assert res.headers["X-Content-Type-Options"] == "nosniff"
+    assert res.headers["X-Frame-Options"] == "DENY"
+    assert res.headers["Cache-Control"] == "no-store"
+    assert "access-control-allow-origin" not in res.headers
+
+
+def test_presence_only_to_authenticated_websocket():
+    service, _ = make()
+    app = create_app(service, api_token="ia-secret", dashboard_token="dash")
+    ia = {"Authorization": "Bearer ia-secret"}
+    with TestClient(app) as client, client.websocket_connect("/ws") as anon, client.websocket_connect("/ws") as op:
+        op.send_json({"type": "auth", "token": "dash"})
+        assert op.receive_json() == {"type": "auth", "ok": True}
+        anon.send_json({"type": "auth", "token": "faux"})
+        assert anon.receive_json() == {"type": "auth", "ok": False}
+        anon.send_text("pas du json")  # ignore sans couper la connexion (OWASP A10)
+        client.post("/api/v1/test/heat", headers=ia)
+        assert anon.receive_json()["type"] == "alert" and op.receive_json()["type"] == "alert"
+        service.hub.broadcast({"type": "presence", "kind": "entree", "person": "Alice"}, private=True)
+        client.post("/api/v1/test/gas", headers=ia)
+        assert op.receive_json()["type"] == "presence"
+        assert anon.receive_json()["kind"] == "gas"  # l'anonyme recoit l'alerte suivante, pas la presence
+
+
+def test_photo_size_is_bounded():
+    service, _ = make()
+    client = TestClient(create_app(service, dashboard_token="dash"))
+    big = {"name": "X", "photo": "A" * 8_000_001}
+    assert client.post("/api/v1/people", json=big, headers={"Authorization": "Bearer dash"}).status_code == 422

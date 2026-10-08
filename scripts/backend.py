@@ -9,6 +9,7 @@ Le port 5432 du conteneur doit etre publie sur la machine (5433 par defaut, FORT
 """
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -50,9 +51,18 @@ def main() -> None:
 
     import uvicorn
 
+    # Journal d'audit (OWASP A09) : actions sensibles horodatees dans data/audit.log
+    log_path = Path(config.DATA_DIR) / "audit.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    handler = logging.FileHandler(log_path, encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+    audit = logging.getLogger("fortex.audit")
+    audit.setLevel(logging.INFO)
+    audit.addHandler(handler)
+
     safety = SafetyAlarm(config.CRITICAL_TEMP, config.CRITICAL_GAS) if config.SAFETY_ALARMS else None
     service = Service(make_store(args.memory), Hub(), safety,
-                      node_id=config.NODE_ID)
+                      node_id=config.NODE_ID, auto_alarm=config.AUTO_ALARM)
     bridge = MqttBridge(service, config.MQTT_HOST, config.MQTT_PORT, config.SENSORS_TOPIC,
                         config.MQTT_USER, config.MQTT_PASSWORD, config.MQTT_CA_CERT)
     service.publish = bridge.publish
@@ -78,7 +88,8 @@ def main() -> None:
 
     app = create_app(service, config.API_TOKEN, config.CORS_ORIGINS, mqtt_status=lambda: bridge.connected,
                      on_startup=bridge.start, on_shutdown=shutdown, people=people, presence=presence,
-                     vision=vision)
+                     vision=vision, mosquitto_log=config.ROOT / "infra" / "mosquitto" / "log" / "mosquitto.log",
+                     dashboard_token=config.DASHBOARD_TOKEN)
     print(f"API : http://localhost:{args.port}/docs   WebSocket : ws://localhost:{args.port}/ws")
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 

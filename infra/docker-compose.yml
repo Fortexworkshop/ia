@@ -1,7 +1,11 @@
-# Stack serveur FORTEX : Mosquitto (MQTTS) + PostgreSQL + backend (API REST/WebSocket).
+# Stack serveur FORTEX : Mosquitto (MQTTS) + PostgreSQL + supervision (Prometheus + Grafana).
 # Prerequis : .env (copie de .env.example), ./scripts/gen-certs.sh, ./scripts/gen-mqtt-users.sh
-# Lancement : docker compose up -d --build
+# Lancement : docker compose up -d
+# Le backend tourne sur le PC serveur (il pilote la webcam et la reconnaissance faciale) :
+#   python scripts/backend.py  (lance par scripts/start.ps1)
+# Backend en conteneur (sans webcam ni visages) : docker compose --profile backend-docker up -d --build
 # Simulateur IoT (sans boitier) : docker compose --profile simulation up -d
+# Grafana : http://localhost:3001 (admin / GRAFANA_ADMIN_PASSWORD)
 
 x-hardening: &hardening
   restart: unless-stopped
@@ -37,6 +41,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD}   # compte grafana_ro (02-grafana-readonly.sh)
+    ports:
+      - "127.0.0.1:5433:5432"   # backend sur le PC serveur uniquement (localhost, pas le reseau)
     volumes:
       - fortex-postgres-data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d
@@ -45,10 +52,10 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-    # Pas de port publie : la base n'est joignable que par le backend (reseau Docker interne)
 
   backend:
     <<: *hardening
+    profiles: ["backend-docker"]   # par defaut le backend tourne sur le PC (webcam, visages)
     build:
       context: ${IA_DIR:-..}
       dockerfile: backend/Dockerfile
@@ -83,6 +90,45 @@ services:
       mosquitto:
         condition: service_started
 
+  prometheus:
+    <<: *hardening
+    image: prom/prometheus:v3.1.0
+    container_name: fortex-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d   # MCO : historique borne
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - fortex-prometheus-data:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Pas de port publie : seul Grafana le lit (reseau Docker interne)
+
+  grafana:
+    <<: *hardening
+    image: grafana/grafana-oss:11.5.2
+    container_name: fortex-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/fortex.json
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD}   # lu par provisioning/datasources
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - fortex-grafana-data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+
   simulator:
     <<: *hardening
     profiles: ["simulation"]   # desactive par defaut : ne pas melanger avec les vraies mesures
@@ -106,3 +152,5 @@ services:
 
 volumes:
   fortex-postgres-data:
+  fortex-prometheus-data:
+  fortex-grafana-data:

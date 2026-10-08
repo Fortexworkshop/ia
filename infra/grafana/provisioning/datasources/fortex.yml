@@ -1,0 +1,23 @@
+apiVersion: 1
+datasources:
+  - name: FORTEX PostgreSQL
+    uid: fortex-pg
+    type: grafana-postgresql-datasource
+    url: postgres:5432
+    user: grafana_ro          # compte en lecture seule (postgres/init/02-grafana-readonly.sh)
+    jsonData:
+      database: fortex
+      sslmode: disable        # reseau Docker interne, base non publiee
+      postgresVersion: 1600
+      timescaledb: false
+    secureJsonData:
+      password: $GRAFANA_DB_PASSWORD
+    editable: false
+  - name: FORTEX Prometheus
+    uid: fortex-prom
+    type: prometheus
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 5s
+    editable: false

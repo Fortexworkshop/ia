@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 
 # Le backend reutilise seulement la configuration de sentinel/ (aucune dependance IA)
 COPY sentinel/__init__.py sentinel/config.py sentinel/sensors.py sentinel/
+COPY presence/__init__.py presence/config.py presence/
 COPY backend/ backend/
 COPY scripts/backend.py scripts/backend.py
 

@@ -24,7 +24,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS people (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
-    role TEXT NOT NULL DEFAULT '',
+    role TEXT NOT NULL DEFAULT '',  -- plus utilise (fonction supprimee le 2026-10-08), garde pour les bases existantes
     notes TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -144,9 +144,9 @@ class PeopleStore:
         return conn
 
     @staticmethod
-    def _person(name: str, role: str = "", notes: str = "", face: bool = False,
+    def _person(name: str, notes: str = "", face: bool = False,
                 created_at: str = "", updated_at: str = "") -> dict:
-        return {"name": name, "role": role, "notes": notes, "face": face,
+        return {"name": name, "notes": notes, "face": face,
                 "created_at": created_at, "updated_at": updated_at}
 
     def list(self) -> list[dict]:
@@ -158,19 +158,18 @@ class PeopleStore:
         def person(name: str, row: sqlite3.Row | None) -> dict:
             if row is None:  # empreinte seule, ajoutee par scripts/enroll.py
                 return self._person(name, face=True)
-            return self._person(row["name"], row["role"], row["notes"], row["name"] in faces,
+            return self._person(row["name"], row["notes"], row["name"] in faces,
                                 row["created_at"], row["updated_at"])
 
         return sorted((person(name, rows.get(name)) for name in set(rows) | faces),
                       key=lambda p: p["name"].lower())
 
-    def save(self, name: str, role: str = "", notes: str = "", photo: str = "",
-             previous: str = "") -> dict:
+    def save(self, name: str, notes: str = "", photo: str = "", previous: str = "") -> dict:
         """Cree ou met a jour un individu. `previous` = ancien nom, si renomme."""
         name, old = name.strip(), (previous or name).strip()
         if not name:
             raise ValueError("le nom est obligatoire")
-        role, notes = role.strip(), notes.strip()
+        notes = notes.strip()
 
         with self.lock, closing(self._connect()) as conn:
             existing = conn.execute("SELECT * FROM people WHERE name = ?", (old,)).fetchone()
@@ -178,11 +177,10 @@ class PeopleStore:
             if existing and old != name:
                 conn.execute("DELETE FROM people WHERE name = ?", (old,))
             conn.execute(
-                """INSERT INTO people (name, role, notes, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?)
-                   ON CONFLICT(name) DO UPDATE SET role = excluded.role, notes = excluded.notes,
-                                                   updated_at = excluded.updated_at""",
-                (name, role, notes, created_at, _now()),
+                """INSERT INTO people (name, notes, created_at, updated_at)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(name) DO UPDATE SET notes = excluded.notes, updated_at = excluded.updated_at""",
+                (name, notes, created_at, _now()),
             )
             conn.commit()
 
@@ -199,7 +197,7 @@ class PeopleStore:
             else:
                 face_error = self.enroller.error or "aucun visage detectable sur la photo"
 
-        return {"person": self._person(name, role, notes, enrolled, created_at, _now()),
+        return {"person": self._person(name, notes, enrolled, created_at, _now()),
                 "face_error": face_error}
 
     def delete(self, name: str) -> bool:

@@ -22,11 +22,11 @@ from presence import config as presence_config  # noqa: E402
 from presence.gestures import Gesture, HandGestureDetector  # noqa: E402
 from presence.stabilizer import GestureStabilizer  # noqa: E402
 from sentinel import config  # noqa: E402
+from sentinel.whitelist import LiveWhitelist  # noqa: E402
 from sentinel.alerts import AlertClient, PresenceClient, Severity, build_alert, build_presence  # noqa: E402
-from sentinel.debounce import Debouncer  # noqa: E402
 from sentinel.vision import (  # noqa: E402
-    PersonDetector, StreamState, annotate, known_faces_in, mark_authorized, prepare_frame,
-    start_stream_server,
+    IntruderTimer, PersonDetector, StreamState, annotate, ascii_text, known_faces_in, mark_authorized,
+    prepare_frame, start_stream_server,
 )
 
 
@@ -35,9 +35,8 @@ def load_whitelist():
     from presence.faces import FaceDatabase, FaceRecognizer
 
     db = FaceDatabase(presence_config.FACES_DB)
-    if not db.embeddings:
-        sys.exit("Liste blanche vide : enregistre d'abord les personnes autorisees avec scripts/enroll.py")
-    print(f"Liste blanche : {', '.join(sorted(db.embeddings))}")
+    # Liste vide autorisee : tout le monde est inconnu, et les ajouts du dashboard sont pris a chaud
+    print(f"Liste blanche : {', '.join(sorted(db.embeddings)) or '(vide : toute personne est inconnue)'}")
     return FaceRecognizer(str(presence_config.FACE_DETECTOR_MODEL),
                           str(presence_config.FACE_RECOGNIZER_MODEL), db)
 
@@ -52,8 +51,10 @@ def main() -> None:
     parser.add_argument("--source", default="0", help="index webcam ou chemin video")
     parser.add_argument("--confidence", type=float, default=0.5)
     parser.add_argument("--imgsz", type=int, default=480, help="taille d'inference YOLO (320 = plus rapide, 640 = plus precis)")
-    parser.add_argument("--frames", type=int, default=5, help="images consecutives avant alerte")
-    parser.add_argument("--cooldown", type=float, default=10.0, help="secondes entre deux alertes")
+    parser.add_argument("--intruder-delay", type=float, default=20.0,
+                        help="secondes de presence NON reconnue avant l'alarme intrusion")
+    parser.add_argument("--grace", type=float, default=2.0, help="perte breve toleree (s) sans remettre a zero")
+    parser.add_argument("--realert", type=float, default=60.0, help="nouvelle alerte toutes les N s si l'intrus reste")
     parser.add_argument("--whitelist", action="store_true", help="ignorer les visages autorises")
     parser.add_argument("--pointage", action="store_true",
                         help="journal de presence : detection, pouce en haut = entree, pouce de cote = pause / reprise, pouce en bas = sortie")
@@ -68,6 +69,8 @@ def main() -> None:
 
     detector = PersonDetector(config.YOLO_MODEL, args.confidence, args.imgsz)
     whitelist = load_whitelist() if (args.whitelist or args.pointage) else None
+    # rechargement a chaud de data/faces.npz : ajout / suppression dans « Individus » sans redemarrage
+    live = LiveWhitelist(whitelist, presence_config.FACES_DB) if whitelist else None
     alerts = AlertClient(config.API_URL, config.API_TOKEN, config.API_CA_CERT)
     presence = PresenceClient(config.API_URL, config.API_TOKEN, config.API_CA_CERT)
     hands, stabilizer = None, None
@@ -77,7 +80,7 @@ def main() -> None:
                      "lance python scripts/download_models.py")
         hands = HandGestureDetector(str(presence_config.HAND_MODEL))
         stabilizer = GestureStabilizer(args.gesture_frames, args.gesture_cooldown)
-    debouncer = Debouncer(args.frames, args.cooldown)
+    timer = IntruderTimer(args.intruder_delay, args.grace, args.realert)
     state = StreamState()
     start_stream_server(state, args.host, args.port)
     print(f"Flux video : http://<ip-serveur>:{args.port}/video  (statut : /status)")
@@ -105,6 +108,8 @@ def main() -> None:
                 mark_authorized(detections, known_faces_in(whitelist, frame))
 
             now = time.time()
+            if live is not None and (names := live.refresh(now)) is not None:
+                print(f"Liste blanche rechargee : {', '.join(names) or '(vide)'}")
             authorized = [d.authorized for d in detections if d.authorized]
             agent = authorized[0] if authorized else None
 
@@ -134,15 +139,17 @@ def main() -> None:
             latency_ms = (time.perf_counter() - start) * 1000
 
             intruders = [d for d in detections if not d.authorized]
-            if debouncer.update(bool(intruders), now):
+            if timer.update(bool(intruders), now):
                 alerts.send(build_alert(
                     config.NODE_ID, "vision", "INTRUSION", Severity.CRITICAL,
-                    f"Presence humaine suspecte detectee ({len(intruders)} personne(s))",
+                    f"Intrus : personne non reconnue depuis {timer.elapsed(now):.0f} s "
+                    f"({len(intruders)} personne(s))",
                     {
+                        "unrecognized_seconds": round(timer.elapsed(now)),
                         "persons": len(detections),
                         "intruders": len(intruders),
                         "authorized": [d.authorized for d in detections if d.authorized],
-                        "max_confidence": round(max(d.confidence for d in intruders), 3),
+                        "max_confidence": round(max((d.confidence for d in intruders), default=0.0), 3),
                         "boxes": [d.box for d in intruders],
                         "latency_ms": round(latency_ms, 1),
                         "stream_port": args.port,  # image : http://<serveur>:<port>/snapshot.jpg
@@ -152,12 +159,17 @@ def main() -> None:
             tick = time.perf_counter()
             fps = 0.9 * fps + 0.1 * (1 / max(tick - last, 1e-6))
             last = tick
-            view = annotate(frame, detections, latency_ms, fps, debouncer.active, note)
+            if intruders and not timer.alarm and not note:
+                note = f"Non reconnu : {timer.elapsed(now):.0f} / {args.intruder_delay:.0f} s"
+            labels = {name: ascii_text(name) for name in authorized}
+            view = annotate(frame, detections, latency_ms, fps, timer.alarm, note, labels)
             state.publish(view, {
                 "node_id": config.NODE_ID,
                 "persons": len(detections),
                 "intruders": len(intruders),
-                "alarm": debouncer.active,
+                "alarm": timer.alarm,
+                "unrecognized_seconds": round(timer.elapsed(now), 1),
+                "recognized": [{"name": n} for n in authorized],
                 "gesture": note,
                 "latency_ms": round(latency_ms, 1),
                 "fps": round(fps, 1),

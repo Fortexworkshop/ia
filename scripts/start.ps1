@@ -47,13 +47,13 @@ $py = ".venv\Scripts\python.exe"
 
 # 1. Infra : Mosquitto + PostgreSQL
 if (Test-Path (Join-Path $Infra "docker-compose.yml")) {
-    Write-Host "[infra] docker compose up -d --build ($Infra)" -ForegroundColor Cyan
+    Write-Host "[infra] docker compose up -d ($Infra)" -ForegroundColor Cyan
     if (-not $DryRun) {
         if (-not (Test-Path (Join-Path $Infra ".env"))) {
             Write-Host "ATTENTION : $Infra\.env absent (copier .env.example et changer POSTGRES_PASSWORD)" -ForegroundColor Yellow
         }
         Push-Location $Infra
-        docker compose up -d --build
+        docker compose up -d
         Pop-Location
         if ($LASTEXITCODE -ne 0) { Write-Host "Docker ne repond pas : demarre Docker Desktop" -ForegroundColor Red; exit 1 }
         Start-Sleep -Seconds 3
@@ -90,12 +90,14 @@ if ($Admin) {
 # 4. Dashboard
 if (Test-Path (Join-Path $Dashboard "package.json")) {
     $runner = if (Get-Command pnpm -ErrorAction SilentlyContinue) { "pnpm" } else { "npm" }
-    Launch "Dashboard" $Dashboard "$runner run dev"
+    # build de production + preview (en-tetes de securite, CSP) : jamais le serveur de dev en demo (OWASP A02/A03)
+    Launch "Dashboard" $Dashboard "$runner run demo"
 } else {
     Write-Host "[dashboard] introuvable ($Dashboard)" -ForegroundColor Yellow
 }
 
 Write-Host "`nDashboard : http://localhost:5173   Flux camera : http://localhost:8081/video" -ForegroundColor Green
 Write-Host "API backend : http://localhost:8080/docs" -ForegroundColor Green
+Write-Host "Grafana (supervision / MCO) : http://localhost:3001  (admin / GRAFANA_ADMIN_PASSWORD de infra\.env)" -ForegroundColor Green
 if (-not $RealEsp -and -not $FakeEsp) { Write-Host "Boitier virtuel : http://localhost:8090" -ForegroundColor Green }
 if ($Admin) { Write-Host "Plateforme d'acces : http://localhost:5000" -ForegroundColor Green }

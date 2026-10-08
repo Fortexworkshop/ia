@@ -1,14 +1,16 @@
-// Page d'accès à la partie caméra. Le flux vient du script de vision exécuté sur le PC serveur ;
-// son URL (ex. flux MJPEG) est fournie via VITE_CAMERA_URL.
-// La webcam est un périphérique exclusif : le bouton arrête la vision (donc libère la caméra)
-// ou la relance sans avoir à couper le backend.
+// Caméra : flux annoté par l'IA de vision (MJPEG servi par sentinel_vision.py sur le PC serveur).
+// La webcam est un périphérique exclusif : arrêter la vision la libère pour un autre usage.
 import { useCallback, useEffect, useState } from 'react'
+import CameraFeed from '../components/CameraFeed.jsx'
+import Icon from '../components/Icon.jsx'
+import OperatorOnly from '../components/OperatorOnly.jsx'
 import { visionApi } from '../data/vision.js'
+import { useLive } from '../state/live.jsx'
 
-const CAMERA_URL = import.meta.env.VITE_CAMERA_URL
 const POLL_MS = 3000
 
 export default function Camera() {
+  const { operator } = useLive()
   const [status, setStatus] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -30,6 +32,8 @@ export default function Camera() {
   }, [refresh])
 
   const toggle = async () => {
+    // Arrêter la vision supprime la détection d'intrusion : confirmation explicite (OWASP A06)
+    if (status?.running && !window.confirm('Arrêter la vision ? La détection d’intrusion sera désactivée tant qu’elle n’est pas redémarrée.')) return
     setBusy(true)
     setError('')
     try {
@@ -41,34 +45,45 @@ export default function Camera() {
     }
   }
 
-  const running = status?.running
+  const running = visionApi ? status?.running : true
 
   return (
-    <section>
-      <h2>Caméra</h2>
-
-      {visionApi && (
-        <div className="row">
-          <button type="button" className={running ? '' : 'on'} onClick={toggle} disabled={busy}>
-            {running ? 'Arrêter la vision (libère la caméra)' : 'Démarrer la vision'}
-          </button>
-          <p role="status" className={running ? 'badge ok' : 'badge'}>
-            {busy ? 'En cours…' : running ? `Vision active (port ${status.port})` : 'Vision arrêtée : caméra libre'}
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1>Caméra</h1>
+          <p className="lede">
+            Détection de personnes en temps réel. Cadre vert : personne autorisée. Cadre rouge : intrus (alarme après 20 s
+            sans reconnaissance).
           </p>
         </div>
+        {visionApi && (
+          <div className="btn-row">
+            <span className={`tag ${running ? 'ok' : status?.crashed ? 'warning' : ''}`} role="status">
+              {busy ? 'Changement en cours…' : running ? 'Vision active' : status?.crashed ? 'Vision arrêtée sur une erreur' : 'Vision arrêtée, caméra libre'}
+            </span>
+            <button type="button" className={`btn ${running ? '' : 'primary'}`} onClick={toggle} disabled={!operator || busy || status == null}>
+              {running ? 'Arrêter la vision' : 'Démarrer la vision'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {visionApi && !operator && <OperatorOnly what="démarrer ou arrêter la vision" />}
+
+      {error && (
+        <p className="notice error" role="status">
+          <Icon name="critical" /> <span>{error}</span>
+        </p>
       )}
 
-      {error && <p className="badge critical" role="status">{error}</p>}
+      {/* Cadre de taille fixe (4:3) : le flux n'entraîne aucun décalage de mise en page (CLS) */}
+      <CameraFeed vision={visionApi ? (status ?? { running: false, pending: true }) : null} />
 
-      {CAMERA_URL && running !== false ? (
-        <img className="feed" src={CAMERA_URL} alt="Flux de la webcam" />
-      ) : (
-        <div className="feed empty">
-          {CAMERA_URL
-            ? 'Flux arrêté. Démarrer la vision pour reprendre la caméra.'
-            : 'Aucun flux configuré. Renseigner VITE_CAMERA_URL (voir .env.example).'}
-        </div>
-      )}
-    </section>
+      <p className="muted small">
+        Les images sont traitées sur le PC serveur du site et ne sont pas enregistrées. Seuls les événements (détection,
+        pointage, alarme) sont conservés dans le journal.
+      </p>
+    </div>
   )
 }
