@@ -147,7 +147,7 @@ def main() -> None:
                         "persons": len(detections),
                         "intruders": len(intruders),
                         "authorized": [d.authorized for d in detections if d.authorized],
-                        "max_confidence": round(max(d.confidence for d in intruders), 3),
+                        "max_confidence": round(max((d.confidence for d in intruders), default=0.0), 3),
                         "boxes": [d.box for d in intruders],
                         "latency_ms": round(latency_ms, 1),
                         "stream_port": args.port,  # image : http://<serveur>:<port>/snapshot.jpg

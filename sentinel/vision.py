@@ -102,8 +102,8 @@ class IntruderTimer:
             self.last_seen = now
         elif self.since is not None and now - self.last_seen > self.grace:
             self.since, self.last_alert = None, None  # l'inconnu est parti : tout repart de zero
-        if self.since is None or now - self.since < self.delay:
-            return False
+        if not unknown_present or self.since is None or now - self.since < self.delay:
+            return False  # on n'alerte que sur une image ou l'inconnu est visible
         if self.last_alert is None or now - self.last_alert >= self.realert:
             self.last_alert = now
             return True

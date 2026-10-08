@@ -61,3 +61,11 @@ def test_backend_intrusion_alert_rings_buzzer_and_led():
                           "severity": "critical", "message": "intrus"})
     assert sent == [("sentinel/SX-01/commands", {"actuator": "buzzer", "state": True}),
                     ("sentinel/SX-01/commands", {"actuator": "led", "state": True})]
+
+
+def test_no_alert_on_a_frame_without_the_intruder():
+    # 19.8 s visible puis 1 s hors champ (dans la tolerance) : rien tant qu'il n'est pas revu
+    timer = IntruderTimer(delay=20, grace=2)
+    presence = [True] * 100 + [False] * 5 + [True]
+    fired = run(timer, presence)
+    assert fired == [21.0]  # alerte seulement quand l'inconnu reapparait (bug : plantage a 20.0 s)
