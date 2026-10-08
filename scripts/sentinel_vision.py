@@ -23,6 +23,7 @@ from presence.gestures import Gesture, HandGestureDetector  # noqa: E402
 from presence.stabilizer import GestureStabilizer  # noqa: E402
 from sentinel import config  # noqa: E402
 from sentinel.roles import RoleBook  # noqa: E402
+from sentinel.whitelist import LiveWhitelist  # noqa: E402
 from sentinel.alerts import AlertClient, PresenceClient, Severity, build_alert, build_presence  # noqa: E402
 from sentinel.vision import (  # noqa: E402
     IntruderTimer, PersonDetector, StreamState, annotate, known_faces_in, mark_authorized, prepare_frame,
@@ -35,9 +36,8 @@ def load_whitelist():
     from presence.faces import FaceDatabase, FaceRecognizer
 
     db = FaceDatabase(presence_config.FACES_DB)
-    if not db.embeddings:
-        sys.exit("Liste blanche vide : enregistre d'abord les personnes autorisees avec scripts/enroll.py")
-    print(f"Liste blanche : {', '.join(sorted(db.embeddings))}")
+    # Liste vide autorisee : tout le monde est inconnu, et les ajouts du dashboard sont pris a chaud
+    print(f"Liste blanche : {', '.join(sorted(db.embeddings)) or '(vide : toute personne est inconnue)'}")
     return FaceRecognizer(str(presence_config.FACE_DETECTOR_MODEL),
                           str(presence_config.FACE_RECOGNIZER_MODEL), db)
 
@@ -70,6 +70,8 @@ def main() -> None:
 
     detector = PersonDetector(config.YOLO_MODEL, args.confidence, args.imgsz)
     whitelist = load_whitelist() if (args.whitelist or args.pointage) else None
+    # rechargement a chaud de data/faces.npz : ajout / suppression dans « Individus » sans redemarrage
+    live = LiveWhitelist(whitelist, presence_config.FACES_DB) if whitelist else None
     alerts = AlertClient(config.API_URL, config.API_TOKEN, config.API_CA_CERT)
     presence = PresenceClient(config.API_URL, config.API_TOKEN, config.API_CA_CERT)
     hands, stabilizer = None, None
@@ -108,6 +110,8 @@ def main() -> None:
                 mark_authorized(detections, known_faces_in(whitelist, frame))
 
             now = time.time()
+            if live is not None and (names := live.refresh(now)) is not None:
+                print(f"Liste blanche rechargee : {', '.join(names) or '(vide)'}")
             authorized = [d.authorized for d in detections if d.authorized]
             agent = authorized[0] if authorized else None
 
