@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
+import OperatorOnly from '../components/OperatorOnly.jsx'
+import { useLive } from '../state/live.jsx'
 import { peopleApi, simulatedPeople } from '../data/people.js'
 
 const initials = (name) =>
   name.split(' ').filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
 
-const EMPTY = { name: '', role: '', notes: '', photo: '' }
+const EMPTY = { name: '', notes: '', photo: '' }
 
 const asDataUrl = (file) =>
   new Promise((resolve, reject) => {
@@ -16,6 +18,22 @@ const asDataUrl = (file) =>
   })
 
 export default function People() {
+  const { operator } = useLive()
+  if (peopleApi && !operator)
+    return (
+      <div className="page">
+        <div className="page-head">
+          <div>
+            <h1>Individus autorisés</h1>
+          </div>
+        </div>
+        <OperatorOnly what="consulter et gérer les personnes autorisées (données biométriques)" />
+      </div>
+    )
+  return <PeopleList />
+}
+
+function PeopleList() {
   const readOnly = peopleApi === null
   const [people, setPeople] = useState(readOnly ? simulatedPeople : [])
   const [form, setForm] = useState(EMPTY)
@@ -108,7 +126,7 @@ export default function People() {
   }
 
   const edit = (person) => {
-    setForm({ name: person.name, role: person.role, notes: person.notes, photo: '' })
+    setForm({ name: person.name, notes: person.notes, photo: '' })
     setPrevious(person.name)
     setMessage(null)
     formTitle.current?.focus()
@@ -185,13 +203,6 @@ export default function People() {
                 </p>
               )}
             </div>
-            <div className="field">
-              <label htmlFor="p-role">Fonction</label>
-              <input id="p-role" value={form.role} onChange={update('role')} maxLength={80} autoComplete="organization-title" aria-describedby="p-role-help" />
-              <p id="p-role-help" className="help">
-                Affichée sur le flux vidéo (exemple : Technicien).
-              </p>
-            </div>
             <div className="field wide">
               <label htmlFor="p-notes">Notes</label>
               <textarea id="p-notes" value={form.notes} onChange={update('notes')} rows={2} maxLength={500} />
@@ -238,7 +249,6 @@ export default function People() {
                 </span>
                 <div className="who">
                   <b>{person.name}</b>
-                  {person.role && <span className="muted">{person.role}</span>}
                   <span>
                     <span className={`tag ${person.face ? 'ok' : ''}`}>
                       {person.face ? 'Visage enregistré' : 'Sans visage : non reconnu'}

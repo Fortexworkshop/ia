@@ -1,6 +1,11 @@
 // État temps réel partagé : UNE seule connexion (WebSocket ou simulateur) pour toutes les pages.
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { getToken, login as loginWith, logout, onAuthChange } from '../data/auth.js'
+import { chainAvailable, fetchChain } from '../data/chain.js'
+import { base } from '../data/http.js'
 import { createSource } from '../data/source.js'
+
+const CHAIN_POLL_MS = 5000
 
 const HISTORY = 120 // mesures gardées en mémoire (4 min à 1 mesure / 2 s)
 const MAX_ALERTS = 200
@@ -14,6 +19,8 @@ const initial = {
   commands: [],
   outputs: { buzzer: false, led: false },
   presence: [],
+  chain: null, // état des services (serveur, base, MQTT, vision, boîtier)
+  error: null, // dernier échec d'action, affiché à l'opérateur (OWASP A10)
 }
 
 // Heures : millisecondes (mesures, alertes) ou texte ISO (présence) -> toujours des millisecondes
@@ -43,10 +50,20 @@ function reducer(state, raw) {
       const alerts = [{ ...msg, key, acknowledged: Boolean(msg.acknowledged) }, ...state.alerts]
       return { ...state, alerts: alerts.sort((a, b) => b.ts - a.ts).slice(0, MAX_ALERTS) }
     }
-    case 'ack': {
+    case 'ack-local': {
       const keys = new Set(msg.keys)
-      return { ...state, alerts: state.alerts.map((a) => (keys.has(a.key) ? { ...a, acknowledged: true } : a)) }
+      return { ...state, alerts: state.alerts.map((a) => (keys.has(a.key) ? { ...a, acknowledged: msg.value } : a)) }
     }
+    case 'ack': // acquittement fait sur un autre poste
+      return { ...state, alerts: state.alerts.map((a) => (a.id === msg.id ? { ...a, acknowledged: true } : a)) }
+    case 'chain':
+      return { ...state, chain: msg.chain }
+    case 'error':
+      return { ...state, error: msg.text ? { text: msg.text, at: Date.now() } : null }
+    case 'clear-private': // déconnexion : plus aucune donnée personnelle en mémoire
+      return { ...state, presence: [] }
+    case 'auth':
+      return msg.ok ? state : { ...state, error: { text: 'Code opérateur refusé par le serveur : session fermée.', at: Date.now() } }
     case 'command-ack':
       return {
         ...state,
@@ -85,23 +102,56 @@ export function LiveProvider({ children }) {
     }
   }, [])
 
-  const actions = useMemo(
-    () => ({
-      command: (actuator, value) => sourceRef.current?.sendCommand({ actuator, state: value }),
-      inject: (kind) => sourceRef.current?.inject(kind),
-      acknowledge: (alerts) => {
-        const list = Array.isArray(alerts) ? alerts : [alerts]
-        if (!list.length) return
-        dispatch({ type: 'ack', keys: list.map((a) => a.key) }) // retour immédiat (INP)
-        list.forEach((a) => a.id != null && sourceRef.current?.ack?.(a.id))
-      },
-    }),
+  // Session opérateur
+  const [operator, setOperator] = useState(() => !chainAvailable || Boolean(getToken()))
+  useEffect(
+    () =>
+      onAuthChange((logged) => {
+        setOperator(!chainAvailable || logged)
+        if (!logged) dispatch({ type: 'clear-private' })
+      }),
     [],
   )
 
+  // État de la chaîne de surveillance (serveur seulement : le simulateur n'en a pas)
+  useEffect(() => {
+    if (!chainAvailable) return undefined
+    let alive = true
+    const poll = () => fetchChain().then((chain) => alive && dispatch({ type: 'chain', chain }))
+    poll()
+    const id = setInterval(poll, CHAIN_POLL_MS)
+    return () => {
+      alive = false
+      clearInterval(id)
+    }
+  }, [])
+
+  const actions = useMemo(() => {
+    const fail = (what) => (err) => dispatch({ type: 'error', text: `${what} : ${err.message}` })
+    return {
+      command: (actuator, value) =>
+        sourceRef.current?.sendCommand({ actuator, state: value })?.catch(fail(`Commande ${actuator === 'led' ? 'du voyant' : 'du buzzer'} non envoyée`)),
+      inject: (kind) => sourceRef.current?.inject(kind)?.catch(fail('Exercice non lancé')),
+      acknowledge: (alerts) => {
+        const list = (Array.isArray(alerts) ? alerts : [alerts]).filter((a) => !a.acknowledged)
+        if (!list.length) return
+        const keys = list.map((a) => a.key)
+        dispatch({ type: 'ack-local', keys, value: true }) // retour immédiat (INP)
+        Promise.all(list.filter((a) => a.id != null).map((a) => sourceRef.current?.ack?.(a.id))).catch((err) => {
+          dispatch({ type: 'ack-local', keys, value: false }) // refusé : l'alarme redevient à traiter
+          fail('Acquittement refusé')(err)
+        })
+      },
+      dismissError: () => dispatch({ type: 'error', text: null }),
+      login: (code) => loginWith(base, code),
+      logout,
+    }
+  }, [])
+
   const value = useMemo(
-    () => ({ ...state, actions, sourceLabel: sourceRef.current?.label ?? '', simulated: Boolean(sourceRef.current?.simulated) }),
-    [state, actions],
+    // simulé = aucun serveur configuré : connu dès le chargement (pas de changement d'affichage, CLS)
+    () => ({ ...state, actions, operator, sourceLabel: chainAvailable ? 'Serveur FORTEX' : 'Simulateur', simulated: !chainAvailable }),
+    [state, actions, operator],
   )
 
   return (

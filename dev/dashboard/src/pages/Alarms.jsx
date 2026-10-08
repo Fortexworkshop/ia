@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import Icon from '../components/Icon.jsx'
+import OperatorOnly from '../components/OperatorOnly.jsx'
 import { SOURCES, dateTime, isExercise, kindLabel, levelOf, sourceLabel } from '../state/model.js'
 import { useLive } from '../state/live.jsx'
 
 const STATES = { open: 'Non acquittées', all: 'Toutes' }
 
 export default function Alarms() {
-  const { alerts, actions } = useLive()
+  const { alerts, actions, operator } = useLive()
   const [state, setState] = useState('open')
   const [level, setLevel] = useState('all')
   const [source, setSource] = useState('all')
@@ -34,12 +35,14 @@ export default function Alarms() {
             l'historique.
           </p>
         </div>
-        {open.length > 0 && (
+        {operator && open.length > 0 && (
           <button type="button" className="btn primary" onClick={() => actions.acknowledge(open)}>
             Acquitter les {open.length} affichées
           </button>
         )}
       </div>
+
+      {!operator && <OperatorOnly what="acquitter les alarmes" />}
 
       <form className="panel filters" aria-label="Filtrer les alarmes" onSubmit={(e) => e.preventDefault()}>
         <div className="field">
@@ -119,6 +122,8 @@ export default function Alarms() {
                     <td className="num">
                       {a.acknowledged ? (
                         <span className="tag">Acquittée</span>
+                      ) : !operator ? (
+                        <span className="tag">À traiter</span>
                       ) : (
                         <button type="button" className="btn small" onClick={() => actions.acknowledge(a)}>
                           Acquitter<span className="sr-only"> : {kindLabel(a.kind)}, {dateTime(a.ts)}</span>

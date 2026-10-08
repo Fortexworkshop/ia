@@ -29,10 +29,12 @@ function Alarm({ alert, onAck }) {
           <span className="tag">
             <Icon name="check" width="14" height="14" /> Acquittée
           </span>
-        ) : (
+        ) : onAck ? (
           <button type="button" className="btn small" onClick={() => onAck(alert)}>
             Acquitter<span className="sr-only"> : {title}, {time(alert.ts)}</span>
           </button>
+        ) : (
+          <span className="tag">À traiter</span>
         )}
       </div>
     </li>

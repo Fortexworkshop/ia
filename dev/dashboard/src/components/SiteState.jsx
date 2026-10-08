@@ -24,7 +24,7 @@ export default function SiteState() {
         </p>
       </div>
       <div className="actions">
-        {sounding && (
+        {sounding && live.operator && (
           <button
             type="button"
             className="btn danger"

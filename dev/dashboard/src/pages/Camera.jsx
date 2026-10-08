@@ -1,17 +1,19 @@
 // Caméra : flux annoté par l'IA de vision (MJPEG servi par sentinel_vision.py sur le PC serveur).
 // La webcam est un périphérique exclusif : arrêter la vision la libère pour un autre usage.
 import { useCallback, useEffect, useState } from 'react'
+import CameraFeed from '../components/CameraFeed.jsx'
 import Icon from '../components/Icon.jsx'
+import OperatorOnly from '../components/OperatorOnly.jsx'
 import { visionApi } from '../data/vision.js'
+import { useLive } from '../state/live.jsx'
 
-const CAMERA_URL = import.meta.env.VITE_CAMERA_URL
 const POLL_MS = 3000
 
 export default function Camera() {
+  const { operator } = useLive()
   const [status, setStatus] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [broken, setBroken] = useState(false)
 
   const refresh = useCallback(async () => {
     if (!visionApi) return
@@ -30,11 +32,12 @@ export default function Camera() {
   }, [refresh])
 
   const toggle = async () => {
+    // Arrêter la vision supprime la détection d'intrusion : confirmation explicite (OWASP A06)
+    if (status?.running && !window.confirm('Arrêter la vision ? La détection d’intrusion sera désactivée tant qu’elle n’est pas redémarrée.')) return
     setBusy(true)
     setError('')
     try {
       setStatus(await (status?.running ? visionApi.stop() : visionApi.start()))
-      setBroken(false)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -43,7 +46,6 @@ export default function Camera() {
   }
 
   const running = visionApi ? status?.running : true
-  const showFeed = CAMERA_URL && running && !broken
 
   return (
     <div className="page">
@@ -57,15 +59,17 @@ export default function Camera() {
         </div>
         {visionApi && (
           <div className="btn-row">
-            <span className={`tag ${running ? 'ok' : ''}`} role="status">
-              {busy ? 'Changement en cours…' : running ? 'Vision active' : 'Vision arrêtée, caméra libre'}
+            <span className={`tag ${running ? 'ok' : status?.crashed ? 'warning' : ''}`} role="status">
+              {busy ? 'Changement en cours…' : running ? 'Vision active' : status?.crashed ? 'Vision arrêtée sur une erreur' : 'Vision arrêtée, caméra libre'}
             </span>
-            <button type="button" className={`btn ${running ? '' : 'primary'}`} onClick={toggle} disabled={busy || status == null}>
+            <button type="button" className={`btn ${running ? '' : 'primary'}`} onClick={toggle} disabled={!operator || busy || status == null}>
               {running ? 'Arrêter la vision' : 'Démarrer la vision'}
             </button>
           </div>
         )}
       </div>
+
+      {visionApi && !operator && <OperatorOnly what="démarrer ou arrêter la vision" />}
 
       {error && (
         <p className="notice error" role="status">
@@ -74,30 +78,7 @@ export default function Camera() {
       )}
 
       {/* Cadre de taille fixe (4:3) : le flux n'entraîne aucun décalage de mise en page (CLS) */}
-      <div className="feed">
-        {showFeed ? (
-          <>
-            <img
-              src={CAMERA_URL}
-              width="640"
-              height="480"
-              alt="Flux vidéo de la caméra de surveillance, annoté par l'IA de vision"
-              onError={() => setBroken(true)}
-            />
-            <span className="overlay">
-              <span className="rec">En direct</span>
-            </span>
-          </>
-        ) : (
-          <p className="placeholder">
-            {!CAMERA_URL
-              ? 'Aucun flux configuré : renseigner VITE_CAMERA_URL (voir .env.example).'
-              : broken
-                ? 'Flux injoignable. Vérifier que la vision tourne sur le PC serveur.'
-                : 'Vision arrêtée. Démarrer la vision pour reprendre la caméra.'}
-          </p>
-        )}
-      </div>
+      <CameraFeed vision={visionApi ? (status ?? { running: false, pending: true }) : null} />
 
       <p className="muted small">
         Les images sont traitées sur le PC serveur du site et ne sont pas enregistrées. Seuls les événements (détection,

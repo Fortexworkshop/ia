@@ -52,11 +52,13 @@ export function createSimulator({ intervalMs = 2000 } = {}) {
     },
     sendCommand(cmd) {
       emit({ type: 'command-ack', ts: Date.now(), cmd, delivered: true })
+      return Promise.resolve()
     },
     inject(kind) {
       boosts.set(kind, t + 10)
+      return Promise.resolve()
     },
-    ack() {},
+    ack: () => Promise.resolve(),
     close() {
       clearInterval(id)
     },

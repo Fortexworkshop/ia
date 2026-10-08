@@ -1,41 +1,19 @@
 // Présence : qui est sur site (évacuation, sécurité), détections de la vision et pointages par geste.
 // Événements du backend (type "presence") : historique au chargement puis WebSocket.
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import Icon from '../components/Icon.jsx'
-import { peopleApi } from '../data/people.js'
-import { time } from '../state/model.js'
+import OperatorOnly from '../components/OperatorOnly.jsx'
+import { ON_SITE, POINTAGES, isToday, lastPointages, time } from '../state/model.js'
 import { useLive } from '../state/live.jsx'
 
-const POINTAGES = { entree: 'Entrée', pause: 'Pause', reprise: 'Reprise', sortie: 'Sortie' }
-const ON_SITE = { entree: 'Sur site', reprise: 'Sur site', pause: 'En pause', sortie: 'Parti' }
-const isToday = (ts) => new Date(ts).toDateString() === new Date().toDateString()
 
 export default function Presence() {
-  const { presence } = useLive()
-  const [roles, setRoles] = useState({})
-
-  // Rôle de chaque individu (page « Individus »), relu toutes les 15 s
-  useEffect(() => {
-    if (!peopleApi) return undefined
-    const load = () =>
-      peopleApi
-        .list()
-        .then((people) => setRoles(Object.fromEntries(people.map((p) => [p.name, p.role]))))
-        .catch(() => {})
-    load()
-    const id = setInterval(load, 15000)
-    return () => clearInterval(id)
-  }, [])
+  const { presence, operator } = useLive()
 
   const today = useMemo(() => presence.filter((e) => isToday(e.ts)), [presence])
   const detections = useMemo(() => today.filter((e) => e.kind === 'detection'), [today])
   const pointages = useMemo(() => today.filter((e) => e.kind in POINTAGES), [today])
-  // Dernier pointage de chaque personne aujourd'hui (la liste est triée du plus récent au plus ancien)
-  const status = useMemo(() => {
-    const seen = new Map()
-    for (const e of pointages) if (e.person && !seen.has(e.person)) seen.set(e.person, e)
-    return [...seen.values()]
-  }, [pointages])
+  const status = useMemo(() => lastPointages(presence), [presence])
   const onSite = status.filter((e) => e.kind !== 'sortie')
   const key = (e) => e.id ?? `${e.ts}-${e.kind}-${e.person}`
   const who = (person) => person || 'Personne non reconnue'
@@ -52,6 +30,10 @@ export default function Presence() {
         </div>
       </div>
 
+      {!operator ? (
+        <OperatorOnly what="consulter la présence (données personnelles)" />
+      ) : (
+      <>
       <div className="grid split">
         <section className="panel" aria-labelledby="onsite-title">
           <div className="panel-head">
@@ -68,7 +50,6 @@ export default function Presence() {
                 <li key={e.person}>
                   <span>
                     <b>{e.person}</b>
-                    {roles[e.person] && <span className="muted"> · {roles[e.person]}</span>}
                   </span>
                   <span className={`tag ${e.kind === 'sortie' ? '' : e.kind === 'pause' ? 'warning' : 'ok'}`}>
                     {ON_SITE[e.kind]} depuis {time(e.ts)}
@@ -91,7 +72,6 @@ export default function Presence() {
                 <li key={key(e)}>
                   <span>
                     <b>{who(e.person)}</b>
-                    {roles[e.person] && <span className="muted"> · {roles[e.person]}</span>}
                   </span>
                   <time className="muted small" dateTime={new Date(e.ts).toISOString()}>
                     {time(e.ts)}
@@ -130,8 +110,7 @@ export default function Presence() {
                     </td>
                     <th scope="row" style={{ fontWeight: 600 }}>
                       {who(e.person)}
-                      {roles[e.person] && <span className="muted"> · {roles[e.person]}</span>}
-                    </th>
+                      </th>
                     <td>{POINTAGES[e.kind]}</td>
                   </tr>
                 ))}
@@ -140,6 +119,8 @@ export default function Presence() {
           </div>
         )}
       </section>
+      </>
+      )}
     </div>
   )
 }

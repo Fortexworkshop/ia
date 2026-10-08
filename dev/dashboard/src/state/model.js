@@ -1,6 +1,7 @@
 // Vocabulaire métier partagé par toutes les pages (libellés, priorités, état du site).
 
 export const STALE_AFTER_MS = 10_000 // au-delà, les valeurs affichées ne sont plus « en direct »
+const PAGE_START = Date.now() // avant la première mesure : « connexion », pas « liaison perdue »
 
 export const SENSORS = [
   { key: 'temp', label: 'Température', unit: '°C', digits: 1, kinds: ['temperature', 'anomalie'] },
@@ -53,19 +54,56 @@ export const ago = (ms) => {
 export const activeAlarms = (alerts) =>
   alerts.filter((a) => !a.acknowledged).sort((a, b) => levelOf(b).rank - levelOf(a).rank || b.ts - a.ts)
 
+// Défauts de la chaîne de surveillance : sans eux, « aucune alarme » ne prouve rien.
+export function chainIssues(chain) {
+  if (!chain) return []
+  const issues = []
+  if (!chain.health) issues.push('serveur de supervision injoignable')
+  else {
+    if (chain.health.mqtt_connected === false) issues.push('liaison MQTT avec le boîtier coupée')
+    if (chain.health.database_ok === false) issues.push('base de données indisponible (historique non enregistré)')
+  }
+  if (chain.vision?.available && chain.vision.running === false)
+    issues.push(chain.vision.crashed ? 'vision arrêtée sur une erreur : aucune détection d’intrusion' : 'surveillance vidéo arrêtée : aucune détection d’intrusion')
+  return issues
+}
+
 // État global du site : répond en un coup d'œil à « tout va bien ? ».
-export function siteState({ alerts, online, lastReadingAt, now }) {
+// Il n'affirme jamais plus que ce que le système sait (pas de « tout est normal » si une brique est arrêtée).
+export function siteState({ alerts, online, lastReadingAt, now, chain }) {
   const active = activeAlarms(alerts)
   const critical = active.filter((a) => a.level === 'critical').length
   const warning = active.length - critical
   const stale = !online || lastReadingAt == null || now - lastReadingAt > STALE_AFTER_MS
+  const issues = chainIssues(chain)
+  const base = { critical, warning, stale, issues }
   if (critical)
-    return { id: 'critical', icon: 'critical', title: 'Alarme', detail: count(critical, 'alarme critique', 'alarmes critiques') + (warning ? `, ${count(warning, 'avertissement', 'avertissements')}` : '') + ' à traiter', critical, warning, stale }
+    return { ...base, id: 'critical', icon: 'critical', title: 'Alarme', detail: count(critical, 'alarme critique', 'alarmes critiques') + (warning ? `, ${count(warning, 'avertissement', 'avertissements')}` : '') + ' à traiter' }
+  if (stale && lastReadingAt == null && now - PAGE_START < STALE_AFTER_MS)
+    return { ...base, id: 'nominal', icon: 'unlink', title: 'Connexion en cours', detail: 'En attente des premières mesures du boîtier.' }
   if (stale)
-    return { id: 'stale', icon: 'unlink', title: 'Liaison perdue', detail: online ? `Dernière mesure ${ago(lastReadingAt == null ? null : now - lastReadingAt)} : les valeurs ne sont plus en direct.` : 'Le serveur de supervision ne répond pas. Reconnexion automatique en cours.', critical, warning, stale }
-  if (warning)
-    return { id: 'warning', icon: 'warning', title: 'Vigilance', detail: count(warning, 'avertissement', 'avertissements') + ' à examiner', critical, warning, stale }
-  return { id: 'nominal', icon: 'shield', title: 'Fonctionnement nominal', detail: 'Toutes les mesures sont dans leur profil habituel. Aucune alarme en cours.', critical, warning, stale }
+    return { ...base, id: 'stale', icon: 'unlink', title: 'Liaison perdue', detail: online ? `Dernière mesure ${ago(lastReadingAt == null ? null : now - lastReadingAt)} : les valeurs ne sont plus en direct.` : 'Le serveur de supervision ne répond pas. Reconnexion automatique en cours.' }
+  if (warning || issues.length)
+    return { ...base, id: 'warning', icon: 'warning', title: 'Vigilance', detail: [warning && count(warning, 'avertissement', 'avertissements') + ' à examiner', ...issues].filter(Boolean).join(' · ').replace(/^./, (c) => c.toUpperCase()) }
+  return {
+    ...base,
+    id: 'nominal',
+    icon: 'shield',
+    title: 'Aucune alarme',
+    // n'affirme que ce qui est vérifié : l'IA prédictive ne remonte pas son état (voir la chaîne de surveillance)
+    detail: chain ? 'Mesures reçues en direct. Serveur, liaison avec le boîtier et vision actifs.' : 'Mesures simulées reçues en direct (simulateur local).',
+  }
 }
 
 const count = (n, one, many) => `${n} ${n > 1 ? many : one}`
+
+// Présence : dernier pointage du jour de chaque personne (évacuation : qui est sur site ?)
+export const POINTAGES = { entree: 'Entrée', pause: 'Pause', reprise: 'Reprise', sortie: 'Sortie' }
+export const ON_SITE = { entree: 'Sur site', reprise: 'Sur site', pause: 'En pause', sortie: 'Parti' }
+export const isToday = (ts) => new Date(ts).toDateString() === new Date().toDateString()
+export function lastPointages(presence) {
+  const seen = new Map()
+  // presence est trié du plus récent au plus ancien : le premier vu est le dernier pointage
+  for (const e of presence) if (e.kind in POINTAGES && e.person && isToday(e.ts) && !seen.has(e.person)) seen.set(e.person, e)
+  return [...seen.values()]
+}

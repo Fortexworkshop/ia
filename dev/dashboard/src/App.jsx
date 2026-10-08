@@ -1,5 +1,8 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
+import Feedback from './components/Feedback.jsx'
 import Icon, { Logo } from './components/Icon.jsx'
+import LoginDialog, { openLogin } from './components/LoginDialog.jsx'
 import Overview from './pages/Overview.jsx'
 import { activeAlarms, ago, STALE_AFTER_MS } from './state/model.js'
 import { LiveProvider, useLive, useNow } from './state/live.jsx'
@@ -18,6 +21,8 @@ const ROUTES = [
   { path: '/camera', label: 'Caméra', icon: 'camera', Page: Camera },
 ]
 const ALIASES = { '/personnes': '/individus' }
+// Historique long et supervision technique : Grafana (infra/grafana), si son adresse est configurée
+const GRAFANA_URL = import.meta.env.VITE_GRAFANA_URL
 
 const THEMES = [
   { id: 'auto', label: 'automatique', icon: 'contrast' },
@@ -77,10 +82,14 @@ function Shell() {
       <TopBar />
       <SideNav current={route.path} />
       <main id="contenu" ref={mainRef} tabIndex={-1}>
-        <Suspense fallback={<div className="page-loading">Chargement…</div>}>
-          <Page />
-        </Suspense>
+        <Feedback />
+        <ErrorBoundary key={route.path} name={route.label}>
+          <Suspense fallback={<div className="page-loading">Chargement…</div>}>
+            <Page />
+          </Suspense>
+        </ErrorBoundary>
       </main>
+      <LoginDialog />
     </div>
   )
 }
@@ -112,16 +121,31 @@ function TopBar() {
       <div className="topbar-meta">
         <LinkState />
         <Clock />
+        <OperatorButton />
         <button
           type="button"
           className="btn small quiet"
           onClick={() => setTheme(next.id)}
           aria-label={`Thème ${THEMES[index].label}. Passer au thème ${next.label}`}
         >
-          <Icon name={THEMES[index].icon} /> <span aria-hidden="true">Thème {THEMES[index].label}</span>
+          <Icon name={THEMES[index].icon} /> <span className="theme-label" aria-hidden="true">Thème {THEMES[index].label}</span>
         </button>
       </div>
     </header>
+  )
+}
+
+function OperatorButton() {
+  const { operator, simulated, actions } = useLive()
+  if (simulated) return null // simulateur local : pas de serveur, pas de session
+  return operator ? (
+    <button type="button" className="btn small quiet" onClick={actions.logout}>
+      <Icon name="shield" /> <span className="op-label">Opérateur · </span>Se déconnecter
+    </button>
+  ) : (
+    <button type="button" className="btn small" onClick={openLogin}>
+      <Icon name="shield" /> Connexion opérateur
+    </button>
   )
 }
 
@@ -168,6 +192,15 @@ function SideNav({ current }) {
             </a>
           </li>
         ))}
+        {GRAFANA_URL && (
+          <li>
+            <a href={GRAFANA_URL} target="_blank" rel="noopener noreferrer">
+              <Icon name="overview" />
+              Historique (Grafana)
+              <span className="sr-only"> : s'ouvre dans un nouvel onglet</span>
+            </a>
+          </li>
+        )}
       </ul>
     </nav>
   )
