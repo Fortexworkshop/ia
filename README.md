@@ -162,7 +162,7 @@ Documentation interactive de l'API : http://localhost:8080/docs.
 
 ```
                        PC Serveur Local
-webcam USB ─► bridage 640x480 ─► YOLOv8n (personne) ─► [liste blanche visages] ─► 5 images de suite
+webcam USB ─► bridage 640x480 ─► YOLOv8n (personne) ─► [liste blanche visages] ─► non reconnu 20 s
                                                                                           │
 ESP8266 ─MQTTS─► Mosquitto ─► fenetres glissantes 30 mesures ─► Isolation Forest ─► 10 fenetres anormales
                                                                                           │
@@ -174,8 +174,8 @@ ESP8266 ─MQTTS─► Mosquitto ─► fenetres glissantes 30 mesures ─► Is
 
 - Les images sont ramenees a 640x480 avant l'inference. YOLOv8n est filtre sur la classe COCO
   `person`. La latence de chaque image est affichee (vert < 100 ms, rouge au-dela).
-- **Anti faux positifs** : une personne doit etre vue 5 images de suite. Ensuite, 10 s de delai
-  avant une nouvelle alerte.
+- **Alarme intrusion** : une personne non reconnue pendant 20 s declenche l'alerte, le buzzer et la
+  LED du boitier (perte de moins de 2 s toleree, rappel toutes les 60 s). Un agent reconnu jamais.
 - **Liste blanche (`--whitelist`)** : une personne dont le visage est enregistre (`scripts/enroll.py`)
   est marquee « autorisee » en vert et ne declenche pas d'alerte.
 - **Journal de presence (`--pointage`)** : alimente la page « Presence » du dashboard. Une ligne

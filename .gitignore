@@ -13,3 +13,4 @@ models/*.joblib
 .pytest_cache/
 .vscode/
 dev/dashboard/package-lock.json
+livrables/*.zip

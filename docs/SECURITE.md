@@ -77,7 +77,7 @@ traitement est 100 % local, et la plateforme n'est accessible que depuis le PC s
 
 La liste est modifiable depuis le dashboard (page « Individus ») ou en ligne de commande
 (`scripts/enroll.py`) : les deux écrivent dans le même `data/faces.npz`, que la vision
-`--whitelist` relit **à son démarrage**. La suppression (`DELETE /api/v1/people/{name}`) efface
+`--whitelist` recharge **à chaud** (contrôle toutes les 2 s) : un individu supprimé n'est plus reconnu. La suppression (`DELETE /api/v1/people/{name}`) efface
 les données et l'empreinte (droit à l'effacement).
 
 ## 7. Application web : OWASP Top 10:2025 (dashboard et API)

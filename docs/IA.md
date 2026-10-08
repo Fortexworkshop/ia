@@ -9,7 +9,7 @@ sur le PC Serveur Local (option B) : aucune image ni mesure ne quitte la table.
 
 ```
                                 PC Serveur Local
-webcam USB ─► bridage 640x480 ─► YOLOv8n « person » ─► liste blanche (visage) ─► 5 images de suite
+webcam USB ─► bridage 640x480 ─► YOLOv8n « person » ─► liste blanche (visage) ─► non reconnu 20 s
                                                                                          │
 ESP8266 ─MQTT─► Mosquitto ─► fenêtres de 30 mesures ─► Isolation Forest ─► 10 fenêtres anormales
                                                                                          │
@@ -30,7 +30,7 @@ ESP8266 ─MQTT─► Mosquitto ─► fenêtres de 30 mesures ─► Isolation 
 | Modèle | **YOLOv8n** (Ultralytics), pré-entraîné sur COCO, filtré sur la classe `person` | Plus petit modèle YOLOv8, temps réel sur CPU |
 | Taille d'inférence | **480 px** | Meilleur compromis mesuré (voir tableau) |
 | Seuil de confiance | 0,5 | Écarte les détections douteuses |
-| Anti faux positifs | Personne vue **5 images de suite**, puis **10 s** entre deux alertes | Un reflet ou une image isolée ne déclenche rien |
+| Alarme intrusion | Personne **non reconnue pendant 20 s** (perte de moins de 2 s tolérée), puis rappel toutes les 60 s ; l'alerte allume buzzer et LED du boîtier | Un passage bref ou un visage tourné une seconde ne déclenche rien ; un agent reconnu jamais |
 | Liste blanche | Visage reconnu (YuNet + SFace, similarité cosinus ≥ 0,363) dans la boîte de la personne | Un technicien autorisé n'est pas un intrus |
 | Sorties | Alerte `INTRUSION` (gravité `critical`), flux vidéo annoté MJPEG `:8081/video` | Dashboard et historique |
 
@@ -161,7 +161,7 @@ Le secret (jeton de l'API) reste dans `.env`, exclu de Git.
 
 ## 5. Qualité et reproductibilité
 
-- **62 tests automatisés** (`python -m pytest -q`) : classification des gestes, anti faux
+- **114 tests automatisés** (`python -m pytest -q`) : classification des gestes, anti faux
   positifs, extraction des indicateurs, détection d'un incident avant le seuil critique, client
   d'alertes, backend (API, WebSocket, PostgreSQL en mémoire), plateforme web.
 - Installation et lancement en une commande : `scripts/setup.ps1`, `scripts/start.ps1`.
