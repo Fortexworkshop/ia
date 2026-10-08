@@ -65,5 +65,8 @@ CORS_ORIGINS = [o.strip() for o in os.environ.get(
 
 # Garde-fou de dernier recours (backend/messages.py:SafetyAlarm), distinct de l'IA predictive
 SAFETY_ALARMS = os.environ.get("FORTEX_SAFETY_ALARMS", "1") != "0"
+# Alertes qui declenchent automatiquement buzzer + LED rouge du boitier (vide = aucune)
+AUTO_ALARM = tuple(t.strip().upper() for t in os.environ.get("FORTEX_AUTO_ALARM", "INTRUSION").split(",")
+                   if t.strip())
 CRITICAL_TEMP = float(os.environ.get("FORTEX_CRITICAL_TEMP", "40"))
 CRITICAL_GAS = float(os.environ.get("FORTEX_CRITICAL_GAS", "600"))

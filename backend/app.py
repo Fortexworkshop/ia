@@ -102,12 +102,14 @@ class Hub:
 class Service:
     """Logique metier, independante du transport (MQTT, HTTP)."""
 
-    def __init__(self, store, hub: Hub, watcher: SafetyAlarm | None, publish=None, node_id: str = ""):
+    def __init__(self, store, hub: Hub, watcher: SafetyAlarm | None, publish=None, node_id: str = "",
+                 auto_alarm: tuple[str, ...] = ("INTRUSION",)):
         self.store = store
         self.hub = hub
         self.watcher = watcher
         self.publish = publish          # publish(topic, payload_dict) -> bool, None = MQTT absent
         self.node_id = node_id
+        self.auto_alarm = auto_alarm  # types d'alerte qui declenchent buzzer + LED du boitier
         self.lock = threading.Lock()
         self.last_reading_at: float | None = None
 
@@ -128,6 +130,11 @@ class Service:
         with self.lock:
             alert_id = self.store.add_alert(alert)
         self.hub.broadcast(alert_message({**alert, "id": alert_id}))
+        if str(alert.get("type", "")).upper() in self.auto_alarm:
+            # Alarme physique : le superviseur la coupe depuis le dashboard (boutons Buzzer / LED)
+            node = alert.get("node_id") or self.node_id
+            self.command(CommandIn(actuator="buzzer", state=True, node_id=node))
+            self.command(CommandIn(actuator="led", state=True, node_id=node))
         return alert_id
 
     def command(self, cmd: CommandIn) -> bool:

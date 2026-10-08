@@ -52,7 +52,7 @@ def main() -> None:
 
     safety = SafetyAlarm(config.CRITICAL_TEMP, config.CRITICAL_GAS) if config.SAFETY_ALARMS else None
     service = Service(make_store(args.memory), Hub(), safety,
-                      node_id=config.NODE_ID)
+                      node_id=config.NODE_ID, auto_alarm=config.AUTO_ALARM)
     bridge = MqttBridge(service, config.MQTT_HOST, config.MQTT_PORT, config.SENSORS_TOPIC,
                         config.MQTT_USER, config.MQTT_PASSWORD, config.MQTT_CA_CERT)
     service.publish = bridge.publish

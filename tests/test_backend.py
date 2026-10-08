@@ -93,6 +93,8 @@ def test_websocket_receives_alerts_and_readings():
         assert ws.receive_json()["kind"] == "temperature"
         client.post("/api/v1/alerts", json=INTRUSION)
         assert ws.receive_json()["kind"] == "intrusion"
+        # l'intrusion declenche l'alarme physique : buzzer puis LED
+        assert [ws.receive_json()["cmd"]["actuator"] for _ in range(2)] == ["buzzer", "led"]
         service.ingest_reading("SX-01", {"temp": 22.5, "hum": 40, "gas": 300})  # depuis un autre thread (MQTT)
         msg = ws.receive_json()
         assert msg["type"] == "reading" and msg["temp"] == 22.5

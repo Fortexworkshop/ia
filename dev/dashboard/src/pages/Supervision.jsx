@@ -38,6 +38,8 @@ export default function Supervision() {
         setAlerts((a) => [msg, ...a].slice(0, 30))
       } else if (msg.type === 'command-ack') {
         setLog((l) => [msg, ...l].slice(0, 10))
+        // etat reel des actionneurs (ex. alarme declenchee automatiquement par une intrusion)
+        setOutputs((o) => ({ ...o, [msg.cmd.actuator]: msg.cmd.state }))
       }
     })
     return () => {
