@@ -59,10 +59,13 @@ if (Test-Path (Join-Path $dashboard "package.json")) {
     } else { Write-Host "deja installees" }
 }
 
-Step "Stack Docker (Mosquitto MQTTS, PostgreSQL, backend)"
+Step "Stack Docker (Mosquitto MQTTS, PostgreSQL, Prometheus, Grafana)"
 Push-Location (Join-Path $root "infra")
-docker compose up -d --build
-Pop-Location
+docker compose up -d
 Check "docker compose"
+Start-Sleep -Seconds 8
+# compte PostgreSQL en lecture seule pour Grafana (idempotent, aussi pour une base deja creee)
+docker compose exec -T postgres sh /docker-entrypoint-initdb.d/02-grafana-readonly.sh
+Pop-Location
 
 Write-Host "`nInstallation terminee. Lancement : powershell -ExecutionPolicy Bypass -File scripts\start.ps1" -ForegroundColor Green

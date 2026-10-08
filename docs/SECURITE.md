@@ -9,7 +9,8 @@
 | ESP8266 → broker | MQTT en clair, port 1883 | **MQTTS, TLS 1.2 minimum**, port 8883. Le certificat serveur est vérifié par l'ESP8266 (BearSSL, CA FORTEX embarquée) | Écran OLED « MQTT OK (TLS) » ; logs Mosquitto `negotiated TLSv1.3` |
 | Backend, IA → broker | MQTT en clair | **MQTTS**, vérification du certificat par la CA FORTEX | `check_security.py` : TLSv1.3, `TLS_AES_256_GCM_SHA384` |
 | IA → API | HTTP sans authentification | HTTP + **jeton Bearer** (secret dans `.env`, hors Git) | Requête sans jeton : HTTP 401 |
-| Backend → PostgreSQL | — | Réseau Docker interne uniquement, **aucun port publié** | `docker compose ps` : `5432/tcp` non exposé |
+| Backend → PostgreSQL | — | Publié **sur localhost uniquement** (`127.0.0.1:5433`), injoignable depuis le réseau | `docker compose ps` : `127.0.0.1:5433->5432/tcp` |
+| Grafana → PostgreSQL | — | Compte **`grafana_ro` en lecture seule** (SELECT uniquement) | `infra/postgres/init/02-grafana-readonly.sh` |
 
 **PKI** : `infra/scripts/gen-certs.sh` crée une autorité racine « FORTEX Root CA » et un
 certificat serveur RSA 2048 valable 2 ans. Il couvre les noms `mosquitto`, `localhost` et l'adresse
@@ -48,7 +49,8 @@ a été vérifié.
 | 5173 | dashboard | réseau de la table |
 | 8081 | flux vidéo IA | réseau de la table |
 | 5000 | contrôle d'accès (biométrie) | **localhost uniquement** |
-| 5432 | PostgreSQL | **non exposé** |
+| 5433 | PostgreSQL | **localhost uniquement** (`127.0.0.1`), pour le backend du PC serveur |
+| 3001 | Grafana (supervision, MCO) | réseau de la table, compte admin obligatoire |
 | 1883 | MQTT en clair | **fermé** |
 
 Pare-feu Windows, à appliquer en PowerShell administrateur. Ces règles autorisent uniquement le

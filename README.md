@@ -49,6 +49,7 @@ dashboard. Ensuite :
 |---|---|
 | http://localhost:5173 | Dashboard de supervision |
 | http://localhost:8090 | **Boîtier virtuel** : capteurs réglables, scénarios d'incident, OLED, LEDs, buzzer |
+| http://localhost:3001 | **Grafana** : capteurs, alertes et MCO du serveur (compte `admin`, mot de passe `GRAFANA_ADMIN_PASSWORD` dans `infra/.env`) |
 | http://localhost:8080/docs | API du backend |
 | http://localhost:8081/video | Flux webcam annoté par l'IA |
 | http://localhost:5000 | Contrôle d'accès (`start.ps1 -Admin`) |
@@ -88,6 +89,27 @@ lui, l'alarme locale.
 pour `dev` avec `--prefix=dev`.
 
 ---
+
+## Supervision Grafana (`infra/grafana/`, `infra/prometheus/`)
+
+Le tableau de bord « FORTEX - Supervision SENTINEL-X » est provisionné automatiquement (rafraîchi
+toutes les 5 s). Il a trois sections :
+
+- **Capteurs** (PostgreSQL, compte `grafana_ro` en lecture seule) : courbes de température,
+  d'humidité et de gaz avec les seuils, dernières valeurs, présence PIR.
+- **Alertes** : alertes critiques, intrusions, anomalies prédites par l'IA, répartition par type,
+  dernières alertes.
+- **MCO du PC serveur** (Prometheus, qui collecte `GET /metrics` du backend) : CPU, RAM et disque,
+  état du backend, de MQTTS, de PostgreSQL et de la vision, ancienneté de la dernière mesure,
+  débit MQTT (mesures valides et rejetées) et volume du journal Mosquitto.
+
+## Contrôle d'accès du dashboard
+
+Les actions de l'opérateur (ajouter ou supprimer un individu, démarrer ou arrêter la vision,
+buzzer et LED) utilisent un **jeton opérateur** (`VITE_DASHBOARD_TOKEN`), distinct du jeton de
+l'IA. Ce jeton ne permet pas d'émettre des alertes, car il est lisible dans le navigateur. Le rôle
+saisi dans « Individus » s'affiche sur le flux vidéo (« Nom - rôle ») et dans le journal de
+présence.
 
 ## Backend (`backend/`)
 
