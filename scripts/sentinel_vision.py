@@ -22,12 +22,11 @@ from presence import config as presence_config  # noqa: E402
 from presence.gestures import Gesture, HandGestureDetector  # noqa: E402
 from presence.stabilizer import GestureStabilizer  # noqa: E402
 from sentinel import config  # noqa: E402
-from sentinel.roles import RoleBook  # noqa: E402
 from sentinel.whitelist import LiveWhitelist  # noqa: E402
 from sentinel.alerts import AlertClient, PresenceClient, Severity, build_alert, build_presence  # noqa: E402
 from sentinel.vision import (  # noqa: E402
-    IntruderTimer, PersonDetector, StreamState, annotate, known_faces_in, mark_authorized, prepare_frame,
-    start_stream_server,
+    IntruderTimer, PersonDetector, StreamState, annotate, ascii_text, known_faces_in, mark_authorized,
+    prepare_frame, start_stream_server,
 )
 
 
@@ -81,7 +80,6 @@ def main() -> None:
                      "lance python scripts/download_models.py")
         hands = HandGestureDetector(str(presence_config.HAND_MODEL))
         stabilizer = GestureStabilizer(args.gesture_frames, args.gesture_cooldown)
-    roles = RoleBook(config.DATA_DIR / "people.db")  # roles saisis dans la page « Individus »
     timer = IntruderTimer(args.intruder_delay, args.grace, args.realert)
     state = StreamState()
     start_stream_server(state, args.host, args.port)
@@ -163,7 +161,7 @@ def main() -> None:
             last = tick
             if intruders and not timer.alarm and not note:
                 note = f"Non reconnu : {timer.elapsed(now):.0f} / {args.intruder_delay:.0f} s"
-            labels = {name: roles.label(name) for name in authorized}
+            labels = {name: ascii_text(name) for name in authorized}
             view = annotate(frame, detections, latency_ms, fps, timer.alarm, note, labels)
             state.publish(view, {
                 "node_id": config.NODE_ID,
@@ -171,7 +169,7 @@ def main() -> None:
                 "intruders": len(intruders),
                 "alarm": timer.alarm,
                 "unrecognized_seconds": round(timer.elapsed(now), 1),
-                "recognized": [{"name": n, "role": roles.roles().get(n, "")} for n in authorized],
+                "recognized": [{"name": n} for n in authorized],
                 "gesture": note,
                 "latency_ms": round(latency_ms, 1),
                 "fps": round(fps, 1),

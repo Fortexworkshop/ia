@@ -49,13 +49,14 @@ def test_endpoints_record_and_list(tmp_path):
     client = TestClient(create_app(service, api_token="s3cret", presence=log))
     auth = {"Authorization": "Bearer s3cret"}
 
-    assert client.get("/api/v1/presence").json() == []
+    assert client.get("/api/v1/presence").status_code == 401  # donnees personnelles : operateur seulement
+    assert client.get("/api/v1/presence", headers=auth).json() == []
     assert client.post("/api/v1/presence", json={"kind": "detection"}).status_code == 401
     assert client.post("/api/v1/presence", json={"kind": "inconnu"}, headers=auth).status_code == 422
 
     created = client.post("/api/v1/presence", json={"kind": "entree", "person": "Kephren"}, headers=auth)
     assert created.status_code == 201 and created.json()["kind"] == "entree"
-    events = client.get("/api/v1/presence?limit=10").json()
+    events = client.get("/api/v1/presence?limit=10", headers=auth).json()
     assert events[0]["person"] == "Kephren" and events[0]["id"] == created.json()["id"]
 
 
@@ -67,7 +68,7 @@ def test_presence_without_log_is_empty_and_read_only():
     from backend.store import MemoryStore  # noqa: E402
 
     client = TestClient(create_app(Service(MemoryStore(), Hub(), None, node_id="SX-01")))
-    assert client.get("/api/v1/presence").json() == []
+    assert client.get("/api/v1/presence").json() == []  # aucun jeton configure : lecture libre (developpement)
     assert client.post("/api/v1/presence", json={"kind": "detection"}).status_code == 503
 
 

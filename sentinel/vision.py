@@ -9,11 +9,18 @@ from __future__ import annotations
 
 import json
 import threading
+import unicodedata
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import cv2
 import numpy as np
+
+
+def ascii_text(text: str) -> str:
+    """OpenCV (putText) n'affiche pas les accents : « Chloé » -> « Chloe »."""
+    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+
 
 PERSON_CLASS = 0  # index COCO de "person"
 
@@ -128,7 +135,7 @@ def annotate(frame: np.ndarray, detections: list[Detection], latency_ms: float, 
         # vert = reconnu ; orange = non reconnu (compte a rebours) ; rouge = intrus (alarme)
         color = GREEN if det.authorized else (RED if alarm else ORANGE)
         if det.authorized:
-            label = (labels or {}).get(det.authorized, det.authorized)  # « Nom - role »
+            label = (labels or {}).get(det.authorized, ascii_text(det.authorized))  # nom, sans accents
         else:
             label = f"INTRUS {det.confidence:.0%}" if alarm else "Non reconnu"
         cv2.rectangle(view, (x1, y1), (x2, y2), color, 2)

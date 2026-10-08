@@ -105,11 +105,12 @@ toutes les 5 s). Il a trois sections :
 
 ## Contrôle d'accès du dashboard
 
-Les actions de l'opérateur (ajouter ou supprimer un individu, démarrer ou arrêter la vision,
-buzzer et LED) utilisent un **jeton opérateur** (`VITE_DASHBOARD_TOKEN`), distinct du jeton de
-l'IA. Ce jeton ne permet pas d'émettre des alertes, car il est lisible dans le navigateur. Le rôle
-saisi dans « Individus » s'affiche sur le flux vidéo (« Nom - rôle ») et dans le journal de
-présence.
+Sans connexion, le dashboard montre l'état du site, les mesures et les alarmes, sans aucune donnée personnelle. Les actions (acquitter, commander buzzer et LED, lancer un exercice, démarrer ou arrêter la vision, gérer les individus) et les données personnelles (individus, présence) demandent le **code opérateur** : la valeur `DASHBOARD_TOKEN` de `infra/.env`, que `configure.py` affiche à la fin.
+
+- Le code est saisi dans « Connexion opérateur » et gardé jusqu'à la fermeture de l'onglet. Il n'est **jamais** compilé dans le JavaScript : une variable `VITE_*` serait lisible par quiconque ouvre la page.
+- Ce code ne permet pas d'émettre des alertes : c'est le rôle du jeton de l'IA (`API_TOKEN`).
+- Les actions sensibles sont tracées dans `data/audit.log` (action, adresse du poste).
+- Le nom d'une personne reconnue s'affiche sur le flux vidéo et dans le journal de présence.
 
 ## Backend (`backend/`)
 
@@ -133,7 +134,7 @@ dashboard ──POST /api/v1/commands──►      └──► MQTTS sentinel/
 | `POST /api/v1/commands` | `{"actuator": "buzzer"\|"led", "state": true}` publie sur MQTT |
 | `POST /api/v1/test/{heat\|gas\|intrusion}` | Alerte de test (plateforme de test du dashboard) |
 | `GET /api/v1/people` | Individus de la liste blanche (données + visage) |
-| `POST /api/v1/people` | Ajoute ou modifie un individu (jeton) : `{"name", "role", "notes", "photo"}` ; `photo` (base64) crée l'empreinte faciale. `previous` pour renommer |
+| `POST /api/v1/people` | Ajoute ou modifie un individu (jeton) : `{"name", "notes", "photo"}` ; `photo` (base64) crée l'empreinte faciale. `previous` pour renommer |
 | `DELETE /api/v1/people/{name}` | Retire un individu (jeton) : données et empreinte faciale (droit à l'effacement) |
 | `GET /api/v1/presence` | Journal de présence : détections et pointages |
 | `POST /api/v1/presence` | Ajoute un événement (jeton) : `{"kind": "detection"\|"entree"\|"pause"\|"reprise"\|"sortie", "person"}` |

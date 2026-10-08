@@ -90,7 +90,8 @@ if ($Admin) {
 # 4. Dashboard
 if (Test-Path (Join-Path $Dashboard "package.json")) {
     $runner = if (Get-Command pnpm -ErrorAction SilentlyContinue) { "pnpm" } else { "npm" }
-    Launch "Dashboard" $Dashboard "$runner run dev"
+    # build de production + preview (en-tetes de securite, CSP) : jamais le serveur de dev en demo (OWASP A02/A03)
+    Launch "Dashboard" $Dashboard "$runner run demo"
 } else {
     Write-Host "[dashboard] introuvable ($Dashboard)" -ForegroundColor Yellow
 }

@@ -55,9 +55,9 @@ def test_decode_photo_accepts_data_url_and_raw_base64():
 
 def test_save_lists_and_deletes(tmp_path):
     store, _ = make(tmp_path)
-    result = store.save("  Alice Martin  ", "  Superviseure ", "  RAS  ")
+    result = store.save("  Alice Martin  ", "  RAS  ")
     assert result["face_error"] is None and result["person"]["name"] == "Alice Martin"
-    assert result["person"]["role"] == "Superviseure" and result["person"]["notes"] == "RAS"
+    assert result["person"]["notes"] == "RAS" and "role" not in result["person"]
     assert result["person"]["face"] is False
 
     assert [p["name"] for p in store.list()] == ["Alice Martin"]
@@ -94,7 +94,7 @@ def test_rename_moves_the_face_embedding(tmp_path):
 
 def test_list_includes_faces_enrolled_in_command_line(tmp_path):
     store, _ = make(tmp_path, known=["Kephren"])
-    assert store.list() == [{"name": "Kephren", "role": "", "notes": "", "face": True,
+    assert store.list() == [{"name": "Kephren", "notes": "", "face": True,
                              "created_at": "", "updated_at": ""}]
 
 
@@ -117,18 +117,19 @@ def test_endpoints_require_token_and_manage_people(tmp_path):
     client = TestClient(create_app(service, api_token="s3cret", people=store))
     auth = {"Authorization": "Bearer s3cret"}
 
-    assert client.get("/api/v1/people").json() == []
+    assert client.get("/api/v1/people").status_code == 401  # donnees personnelles : operateur seulement
+    assert client.get("/api/v1/people", headers=auth).json() == []
     assert client.post("/api/v1/people", json={"name": "Alice"}).status_code == 401
     assert client.post("/api/v1/people", json={"name": "  "}, headers=auth).status_code == 400
 
-    created = client.post("/api/v1/people", json={"name": "Alice", "role": "Superviseure"}, headers=auth)
+    created = client.post("/api/v1/people", json={"name": "Alice", "role": "ignoree"}, headers=auth)
     assert created.status_code == 201 and created.json()["person"]["face"] is False
-    assert [p["name"] for p in client.get("/api/v1/people").json()] == ["Alice"]
+    assert [p["name"] for p in client.get("/api/v1/people", headers=auth).json()] == ["Alice"]
 
     assert client.delete("/api/v1/people/Alice").status_code == 401
     assert client.delete("/api/v1/people/Pas%20la", headers=auth).status_code == 404
     assert client.delete("/api/v1/people/Alice", headers=auth).json() == {"deleted": "Alice"}
-    assert client.get("/api/v1/people").json() == []
+    assert client.get("/api/v1/people", headers=auth).json() == []
 
 
 def test_endpoints_without_people_store_are_empty_and_read_only():

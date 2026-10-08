@@ -9,6 +9,7 @@ Le port 5432 du conteneur doit etre publie sur la machine (5433 par defaut, FORT
 """
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -49,6 +50,15 @@ def main() -> None:
     args = parser.parse_args()
 
     import uvicorn
+
+    # Journal d'audit (OWASP A09) : actions sensibles horodatees dans data/audit.log
+    log_path = Path(config.DATA_DIR) / "audit.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    handler = logging.FileHandler(log_path, encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+    audit = logging.getLogger("fortex.audit")
+    audit.setLevel(logging.INFO)
+    audit.addHandler(handler)
 
     safety = SafetyAlarm(config.CRITICAL_TEMP, config.CRITICAL_GAS) if config.SAFETY_ALARMS else None
     service = Service(make_store(args.memory), Hub(), safety,

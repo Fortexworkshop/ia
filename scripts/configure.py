@@ -121,9 +121,11 @@ def main() -> None:
     if DASHBOARD.exists():
         set_env(dash_env, {"VITE_API_URL": "http://localhost:8080",
                            "VITE_CAMERA_URL": "http://localhost:8081/video"})
-        # jeton operateur : individus, vision, buzzer/LED (pas le jeton de l'IA)
-        set_env(dash_env, {"VITE_DASHBOARD_TOKEN": infra.get("DASHBOARD_TOKEN", "")}, overwrite=True)
+        # Le code operateur n'est PAS ecrit ici : une variable VITE_* est compilee dans le JavaScript,
+        # donc lisible par quiconque ouvre la page (OWASP A07). L'operateur le saisit a la connexion.
+        set_env(dash_env, {"VITE_DASHBOARD_TOKEN": ""}, overwrite=True)
     print("ok")
+    print(f"Code operateur du dashboard (a saisir a la connexion) : DASHBOARD_TOKEN dans {INFRA / '.env'}")
 
     step("Firmware ESP8266 (include/sentinel_config.h)")
     config_h = FIRMWARE / "sentinel_config.h"
