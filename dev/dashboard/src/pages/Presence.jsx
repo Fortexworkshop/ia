@@ -1,20 +1,20 @@
-// Journal de présence : détections de la vision et pointages par geste du pouce.
-// Les événements viennent du backend (type "presence") : historique au chargement, puis WebSocket.
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { createSource } from '../data/source.js'
+// Présence : qui est sur site (évacuation, sécurité), détections de la vision et pointages par geste.
+// Événements du backend (type "presence") : historique au chargement puis WebSocket.
+import { useEffect, useMemo, useState } from 'react'
+import Icon from '../components/Icon.jsx'
 import { peopleApi } from '../data/people.js'
+import { time } from '../state/model.js'
+import { useLive } from '../state/live.jsx'
 
-const HISTORY = 50
 const POINTAGES = { entree: 'Entrée', pause: 'Pause', reprise: 'Reprise', sortie: 'Sortie' }
-const time = (ts) => new Date(ts).toLocaleTimeString('fr-FR')
+const ON_SITE = { entree: 'Sur site', reprise: 'Sur site', pause: 'En pause', sortie: 'Parti' }
+const isToday = (ts) => new Date(ts).toDateString() === new Date().toDateString()
 
 export default function Presence() {
-  const sourceRef = useRef(null)
-  const [events, setEvents] = useState([])
-  const [online, setOnline] = useState(false)
+  const { presence } = useLive()
   const [roles, setRoles] = useState({})
 
-  // Role de chaque individu (page « Individus »), relu toutes les 15 s
+  // Rôle de chaque individu (page « Individus »), relu toutes les 15 s
   useEffect(() => {
     if (!peopleApi) return undefined
     const load = () =>
@@ -26,64 +26,118 @@ export default function Presence() {
     const id = setInterval(load, 15000)
     return () => clearInterval(id)
   }, [])
-  const who = (person) => (person ? (roles[person] ? `${person} (${roles[person]})` : person) : 'personne inconnue')
 
-  useEffect(() => {
-    const source = createSource()
-    sourceRef.current = source
-    const unsub = source.subscribe((msg) => {
-      if (msg.type === 'status') {
-        setOnline(msg.online)
-      } else if (msg.type === 'presence') {
-        setOnline(true)
-        setEvents((list) => [msg, ...list].slice(0, HISTORY))
-      }
-    })
-    return () => {
-      unsub()
-      source.close?.()
-    }
-  }, [])
-
-  const detections = useMemo(() => events.filter((e) => e.kind === 'detection'), [events])
-  const pointages = useMemo(() => events.filter((e) => e.kind in POINTAGES), [events])
-  const key = (event) => event.id ?? `${event.ts}-${event.kind}`
+  const today = useMemo(() => presence.filter((e) => isToday(e.ts)), [presence])
+  const detections = useMemo(() => today.filter((e) => e.kind === 'detection'), [today])
+  const pointages = useMemo(() => today.filter((e) => e.kind in POINTAGES), [today])
+  // Dernier pointage de chaque personne aujourd'hui (la liste est triée du plus récent au plus ancien)
+  const status = useMemo(() => {
+    const seen = new Map()
+    for (const e of pointages) if (e.person && !seen.has(e.person)) seen.set(e.person, e)
+    return [...seen.values()]
+  }, [pointages])
+  const onSite = status.filter((e) => e.kind !== 'sortie')
+  const key = (e) => e.id ?? `${e.ts}-${e.kind}-${e.person}`
+  const who = (person) => person || 'Personne non reconnue'
 
   return (
     <div className="page">
-      <p role="status" className={online ? 'badge ok' : 'badge'}>
-        {online ? sourceRef.current?.label ?? 'Source active' : 'En attente de données'}
-      </p>
+      <div className="page-head">
+        <div>
+          <h1>Présence</h1>
+          <p className="lede">
+            Pointage sans contact : la personne est reconnue par la caméra, puis pointe d'un geste du pouce (haut :
+            entrée, côté : pause ou reprise, bas : sortie).
+          </p>
+        </div>
+      </div>
 
-      <section className="card">
-        <h2 id="detections">Détections</h2>
-        <p className="hint">Une ligne à chaque fois qu'une personne se présente devant la caméra.</p>
-        {detections.length === 0 ? (
-          <p className="hint" role="status">Aucune personne détectée pour l'instant.</p>
-        ) : (
-          <ul className="list" aria-labelledby="detections" aria-live="polite">
-            {detections.map((event) => (
-              <li key={key(event)}>
-                {time(event.ts)} · personne détectée · <b>{who(event.person)}</b>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <div className="grid split">
+        <section className="panel" aria-labelledby="onsite-title">
+          <div className="panel-head">
+            <h2 id="onsite-title">Sur site maintenant</h2>
+            <span className="tag">{onSite.length} personne{onSite.length > 1 ? 's' : ''}</span>
+          </div>
+          {status.length === 0 ? (
+            <p className="empty-state">
+              <Icon name="info" /> Aucun pointage aujourd'hui.
+            </p>
+          ) : (
+            <ul className="onsite">
+              {status.map((e) => (
+                <li key={e.person}>
+                  <span>
+                    <b>{e.person}</b>
+                    {roles[e.person] && <span className="muted"> · {roles[e.person]}</span>}
+                  </span>
+                  <span className={`tag ${e.kind === 'sortie' ? '' : e.kind === 'pause' ? 'warning' : 'ok'}`}>
+                    {ON_SITE[e.kind]} depuis {time(e.ts)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
-      <section className="card">
-        <h2 id="pointages">Pointages</h2>
-        <p className="hint">Pouce en haut = entrée, pouce de côté = pause puis reprise, pouce en bas = sortie, par la personne reconnue.</p>
+        <section className="panel" aria-labelledby="det-title">
+          <h2 id="det-title">Détections de la caméra</h2>
+          {detections.length === 0 ? (
+            <p className="empty-state">
+              <Icon name="info" /> Aucune personne détectée aujourd'hui.
+            </p>
+          ) : (
+            <ul className="onsite scroll">
+              {detections.map((e) => (
+                <li key={key(e)}>
+                  <span>
+                    <b>{who(e.person)}</b>
+                    {roles[e.person] && <span className="muted"> · {roles[e.person]}</span>}
+                  </span>
+                  <time className="muted small" dateTime={new Date(e.ts).toISOString()}>
+                    {time(e.ts)}
+                  </time>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      <section aria-labelledby="log-title">
+        <h2 id="log-title" style={{ marginBottom: 'var(--sp-3)' }}>
+          Journal des pointages du jour
+        </h2>
         {pointages.length === 0 ? (
-          <p className="hint" role="status">Aucun pointage pour l'instant.</p>
+          <p className="empty-state panel">
+            <Icon name="info" /> Aucun pointage aujourd'hui.
+          </p>
         ) : (
-          <ul className="list" aria-labelledby="pointages" aria-live="polite">
-            {pointages.map((event) => (
-              <li key={key(event)} className={event.kind}>
-                {time(event.ts)} · <b>{POINTAGES[event.kind]}</b> · {who(event.person)}
-              </li>
-            ))}
-          </ul>
+          <div className="table-wrap">
+            <table>
+              <caption className="sr-only">Pointages du jour, du plus récent au plus ancien</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Heure</th>
+                  <th scope="col">Personne</th>
+                  <th scope="col">Pointage</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pointages.map((e) => (
+                  <tr key={key(e)}>
+                    <td>
+                      <time dateTime={new Date(e.ts).toISOString()}>{time(e.ts)}</time>
+                    </td>
+                    <th scope="row" style={{ fontWeight: 600 }}>
+                      {who(e.person)}
+                      {roles[e.person] && <span className="muted"> · {roles[e.person]}</span>}
+                    </th>
+                    <td>{POINTAGES[e.kind]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </div>

@@ -37,7 +37,10 @@ export function createApiSource(baseUrl) {
   function connect() {
     ws = new WebSocket(wsUrl)
     ws.onopen = () => emit({ type: 'status', online: true })
-    ws.onmessage = (event) => emit(JSON.parse(event.data))
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data)
+      emit(msg.type === 'alert' ? { ...msg, live: true } : msg) // live : à annoncer (≠ historique)
+    }
     ws.onclose = () => {
       emit({ type: 'status', online: false })
       if (!closed) retry = setTimeout(connect, 2000) // reconnexion automatique
@@ -48,7 +51,7 @@ export function createApiSource(baseUrl) {
   connect()
 
   return {
-    label: 'Backend connecté',
+    label: 'Serveur FORTEX',
     subscribe(cb) {
       listeners.add(cb)
       return () => listeners.delete(cb)
@@ -58,6 +61,9 @@ export function createApiSource(baseUrl) {
     },
     inject(kind) {
       post(`/api/v1/test/${kind}`)
+    },
+    ack(id) {
+      post(`/api/v1/alerts/${id}/ack`)
     },
     close() {
       closed = true

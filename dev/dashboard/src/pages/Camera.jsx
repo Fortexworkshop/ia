@@ -1,8 +1,7 @@
-// Page d'accès à la partie caméra. Le flux vient du script de vision exécuté sur le PC serveur ;
-// son URL (ex. flux MJPEG) est fournie via VITE_CAMERA_URL.
-// La webcam est un périphérique exclusif : le bouton arrête la vision (donc libère la caméra)
-// ou la relance sans avoir à couper le backend.
+// Caméra : flux annoté par l'IA de vision (MJPEG servi par sentinel_vision.py sur le PC serveur).
+// La webcam est un périphérique exclusif : arrêter la vision la libère pour un autre usage.
 import { useCallback, useEffect, useState } from 'react'
+import Icon from '../components/Icon.jsx'
 import { visionApi } from '../data/vision.js'
 
 const CAMERA_URL = import.meta.env.VITE_CAMERA_URL
@@ -12,6 +11,7 @@ export default function Camera() {
   const [status, setStatus] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [broken, setBroken] = useState(false)
 
   const refresh = useCallback(async () => {
     if (!visionApi) return
@@ -34,6 +34,7 @@ export default function Camera() {
     setError('')
     try {
       setStatus(await (status?.running ? visionApi.stop() : visionApi.start()))
+      setBroken(false)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -41,34 +42,67 @@ export default function Camera() {
     }
   }
 
-  const running = status?.running
+  const running = visionApi ? status?.running : true
+  const showFeed = CAMERA_URL && running && !broken
 
   return (
-    <section>
-      <h2>Caméra</h2>
-
-      {visionApi && (
-        <div className="row">
-          <button type="button" className={running ? '' : 'on'} onClick={toggle} disabled={busy}>
-            {running ? 'Arrêter la vision (libère la caméra)' : 'Démarrer la vision'}
-          </button>
-          <p role="status" className={running ? 'badge ok' : 'badge'}>
-            {busy ? 'En cours…' : running ? `Vision active (port ${status.port})` : 'Vision arrêtée : caméra libre'}
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1>Caméra</h1>
+          <p className="lede">
+            Détection de personnes en temps réel. Cadre vert : personne autorisée. Cadre rouge : intrus (alarme après 20 s
+            sans reconnaissance).
           </p>
         </div>
+        {visionApi && (
+          <div className="btn-row">
+            <span className={`tag ${running ? 'ok' : ''}`} role="status">
+              {busy ? 'Changement en cours…' : running ? 'Vision active' : 'Vision arrêtée, caméra libre'}
+            </span>
+            <button type="button" className={`btn ${running ? '' : 'primary'}`} onClick={toggle} disabled={busy || status == null}>
+              {running ? 'Arrêter la vision' : 'Démarrer la vision'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {error && (
+        <p className="notice error" role="status">
+          <Icon name="critical" /> <span>{error}</span>
+        </p>
       )}
 
-      {error && <p className="badge critical" role="status">{error}</p>}
+      {/* Cadre de taille fixe (4:3) : le flux n'entraîne aucun décalage de mise en page (CLS) */}
+      <div className="feed">
+        {showFeed ? (
+          <>
+            <img
+              src={CAMERA_URL}
+              width="640"
+              height="480"
+              alt="Flux vidéo de la caméra de surveillance, annoté par l'IA de vision"
+              onError={() => setBroken(true)}
+            />
+            <span className="overlay">
+              <span className="rec">En direct</span>
+            </span>
+          </>
+        ) : (
+          <p className="placeholder">
+            {!CAMERA_URL
+              ? 'Aucun flux configuré : renseigner VITE_CAMERA_URL (voir .env.example).'
+              : broken
+                ? 'Flux injoignable. Vérifier que la vision tourne sur le PC serveur.'
+                : 'Vision arrêtée. Démarrer la vision pour reprendre la caméra.'}
+          </p>
+        )}
+      </div>
 
-      {CAMERA_URL && running !== false ? (
-        <img className="feed" src={CAMERA_URL} alt="Flux de la webcam" />
-      ) : (
-        <div className="feed empty">
-          {CAMERA_URL
-            ? 'Flux arrêté. Démarrer la vision pour reprendre la caméra.'
-            : 'Aucun flux configuré. Renseigner VITE_CAMERA_URL (voir .env.example).'}
-        </div>
-      )}
-    </section>
+      <p className="muted small">
+        Les images sont traitées sur le PC serveur du site et ne sont pas enregistrées. Seuls les événements (détection,
+        pointage, alarme) sont conservés dans le journal.
+      </p>
+    </div>
   )
 }
