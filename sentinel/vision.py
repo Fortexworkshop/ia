@@ -121,13 +121,16 @@ ORANGE = (0, 140, 255)
 
 
 def annotate(frame: np.ndarray, detections: list[Detection], latency_ms: float, fps: float,
-             alarm: bool, note: str = "") -> np.ndarray:
+             alarm: bool, note: str = "", labels: dict[str, str] | None = None) -> np.ndarray:
     view = frame.copy()
     for det in detections:
         x1, y1, x2, y2 = det.box
         # vert = reconnu ; orange = non reconnu (compte a rebours) ; rouge = intrus (alarme)
         color = GREEN if det.authorized else (RED if alarm else ORANGE)
-        label = det.authorized or (f"INTRUS {det.confidence:.0%}" if alarm else "Non reconnu")
+        if det.authorized:
+            label = (labels or {}).get(det.authorized, det.authorized)  # « Nom - role »
+        else:
+            label = f"INTRUS {det.confidence:.0%}" if alarm else "Non reconnu"
         cv2.rectangle(view, (x1, y1), (x2, y2), color, 2)
         cv2.putText(view, label, (x1, max(15, y1 - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
     cv2.putText(view, f"{latency_ms:.0f} ms | {fps:.1f} fps", (10, 25),

@@ -2,16 +2,31 @@
 // Les événements viennent du backend (type "presence") : historique au chargement, puis WebSocket.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createSource } from '../data/source.js'
+import { peopleApi } from '../data/people.js'
 
 const HISTORY = 50
 const POINTAGES = { entree: 'Entrée', pause: 'Pause', reprise: 'Reprise', sortie: 'Sortie' }
 const time = (ts) => new Date(ts).toLocaleTimeString('fr-FR')
-const who = (person) => person || 'personne inconnue'
 
 export default function Presence() {
   const sourceRef = useRef(null)
   const [events, setEvents] = useState([])
   const [online, setOnline] = useState(false)
+  const [roles, setRoles] = useState({})
+
+  // Role de chaque individu (page « Individus »), relu toutes les 15 s
+  useEffect(() => {
+    if (!peopleApi) return undefined
+    const load = () =>
+      peopleApi
+        .list()
+        .then((people) => setRoles(Object.fromEntries(people.map((p) => [p.name, p.role]))))
+        .catch(() => {})
+    load()
+    const id = setInterval(load, 15000)
+    return () => clearInterval(id)
+  }, [])
+  const who = (person) => (person ? (roles[person] ? `${person} (${roles[person]})` : person) : 'personne inconnue')
 
   useEffect(() => {
     const source = createSource()
