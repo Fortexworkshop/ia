@@ -78,7 +78,10 @@ def main() -> None:
     if not infra_env.exists():
         shutil.copy(INFRA / ".env.example", infra_env)
     set_env(infra_env, {"POSTGRES_PASSWORD": secrets.token_urlsafe(18),
-                        "API_TOKEN": secrets.token_urlsafe(24), "IA_DIR": ".."})
+                        "API_TOKEN": secrets.token_urlsafe(24), "IA_DIR": "..",
+                        "DASHBOARD_TOKEN": secrets.token_urlsafe(24),
+                        "GRAFANA_ADMIN_PASSWORD": secrets.token_urlsafe(12),
+                        "GRAFANA_DB_PASSWORD": secrets.token_urlsafe(18)})
     print("ok")
 
     step(f"Certificats TLS (CA FORTEX + broker pour {args.server_ip})")
@@ -103,6 +106,7 @@ def main() -> None:
     if not ia_env.exists():
         shutil.copy(ROOT / ".env.example", ia_env)
     values = {"SENTINEL_API_URL": "http://localhost:8080", "SENTINEL_API_TOKEN": infra.get("API_TOKEN", ""),
+              "FORTEX_DASHBOARD_TOKEN": infra.get("DASHBOARD_TOKEN", ""),
               "SENTINEL_MQTT_HOST": "localhost", "SENTINEL_MQTT_PORT": "8883",
               "SENTINEL_MQTT_CA_CERT": "infra/certs/ca.crt", "SENTINEL_MQTT_USER": "serveur",
               "ESP_MQTT_USER": "esp8266"}
@@ -114,9 +118,11 @@ def main() -> None:
 
     step("Dashboard (dev/dashboard/.env)")
     dash_env = DASHBOARD / ".env"
-    if DASHBOARD.exists() and not dash_env.exists():
-        dash_env.write_text("VITE_API_URL=http://localhost:8080\nVITE_CAMERA_URL=http://localhost:8081/video\n",
-                            encoding="utf-8")
+    if DASHBOARD.exists():
+        set_env(dash_env, {"VITE_API_URL": "http://localhost:8080",
+                           "VITE_CAMERA_URL": "http://localhost:8081/video"})
+        # jeton operateur : individus, vision, buzzer/LED (pas le jeton de l'IA)
+        set_env(dash_env, {"VITE_DASHBOARD_TOKEN": infra.get("DASHBOARD_TOKEN", "")}, overwrite=True)
     print("ok")
 
     step("Firmware ESP8266 (include/sentinel_config.h)")

@@ -1,3 +1,4 @@
+import { authHeaders } from './auth.js'
 // Source réelle : backend FORTEX (REST + WebSocket), même contrat que le simulateur.
 // Messages reçus : { type: 'reading' | 'alert' | 'command-ack' | 'status', ... }
 
@@ -13,7 +14,7 @@ export function createApiSource(baseUrl) {
   const post = (path, body) =>
     fetch(base + path, {
       method: 'POST',
-      headers: body ? { 'Content-Type': 'application/json' } : {},
+      headers: { ...authHeaders, ...(body ? { 'Content-Type': 'application/json' } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     }).catch((err) => console.warn('Backend injoignable', err))
 

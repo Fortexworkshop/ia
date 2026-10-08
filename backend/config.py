@@ -60,6 +60,8 @@ NODE_ID = sentinel_config.NODE_ID
 
 # Meme jeton que celui utilise par l'IA pour POST /api/v1/alerts (vide = pas d'authentification).
 API_TOKEN = sentinel_config.API_TOKEN
+# Jeton de l'operateur (dashboard) : individus, vision, buzzer/LED ; pas d'envoi d'alertes.
+DASHBOARD_TOKEN = os.environ.get("FORTEX_DASHBOARD_TOKEN", "")
 CORS_ORIGINS = [o.strip() for o in os.environ.get(
     "FORTEX_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()]
 

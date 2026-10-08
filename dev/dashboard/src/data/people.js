@@ -3,6 +3,8 @@
 // Contrat d'un individu : { name, role, notes, face, created_at, updated_at }
 // `face` = une empreinte faciale existe dans data/faces.npz (partagé avec la vision).
 
+import { authHeaders } from './auth.js'
+
 const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 
 // Données simulées en attendant le backend. Noms et présence = données personnelles (RGPD).
@@ -13,7 +15,11 @@ export const simulatedPeople = [
 
 async function request(path, options) {
   // no-store : la liste doit refléter immédiatement un ajout ou une suppression.
-  const response = await fetch(base + path, { cache: 'no-store', ...options })
+  const response = await fetch(base + path, {
+    cache: 'no-store',
+    ...options,
+    headers: { ...authHeaders, ...options?.headers },
+  })
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
     throw new Error(body.detail || `Erreur ${response.status}`)

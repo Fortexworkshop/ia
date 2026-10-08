@@ -78,7 +78,8 @@ def main() -> None:
 
     app = create_app(service, config.API_TOKEN, config.CORS_ORIGINS, mqtt_status=lambda: bridge.connected,
                      on_startup=bridge.start, on_shutdown=shutdown, people=people, presence=presence,
-                     vision=vision)
+                     vision=vision, mosquitto_log=config.ROOT / "infra" / "mosquitto" / "log" / "mosquitto.log",
+                     dashboard_token=config.DASHBOARD_TOKEN)
     print(f"API : http://localhost:{args.port}/docs   WebSocket : ws://localhost:{args.port}/ws")
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 

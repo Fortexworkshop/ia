@@ -115,3 +115,36 @@ def test_safety_alarm_can_be_disabled():
 
 def test_alert_without_value_has_no_unit():
     assert alert_message({"type": "ENV_ANOMALY", "data": {}})["unit"] == ""
+
+
+def test_metrics_prometheus_format(tmp_path):
+    service, _ = make()
+    log = tmp_path / "mosquitto.log"
+    log.write_text("x" * 1234)
+    app = create_app(service, mosquitto_log=log)
+    client = TestClient(app)
+    service.ingest_reading("SX-01", {"temperature": 23, "humidity": 45, "gas": 300, "pir": 0})
+    service.ingest_reading("SX-01", {"oops": 1})
+    client.post("/api/v1/alerts", json=INTRUSION)
+    text = client.get("/metrics").text
+    assert "fortex_readings_total 1" in text
+    assert "fortex_readings_rejected_total 1" in text
+    assert 'fortex_alerts_total{type="INTRUSION",source="vision"} 1' in text
+    assert "fortex_commands_total 2" in text          # alarme automatique : buzzer + LED
+    assert "fortex_mosquitto_log_bytes 1234" in text
+    assert "# TYPE fortex_last_reading_age_seconds gauge" in text
+
+
+def test_dashboard_token_is_operator_only():
+    sent = []
+    service, _ = make(publish=lambda t, p: sent.append(t) or True)
+    client = TestClient(create_app(service, api_token="ia-secret", dashboard_token="dash"))
+    ia, dash = {"Authorization": "Bearer ia-secret"}, {"Authorization": "Bearer dash"}
+    command = {"actuator": "buzzer", "state": True}
+    assert client.post("/api/v1/commands", json=command).status_code == 401        # anonyme refuse
+    assert client.post("/api/v1/commands", json=command, headers=dash).status_code == 200
+    assert client.post("/api/v1/commands", json=command, headers=ia).status_code == 200
+    assert client.post("/api/v1/alerts", json=INTRUSION, headers=dash).status_code == 401  # pas d'alerte
+    assert client.post("/api/v1/alerts", json=INTRUSION, headers=ia).status_code == 201
+    assert client.delete("/api/v1/people/x").status_code == 401
+    assert client.delete("/api/v1/people/x", headers=dash).status_code == 404  # autorise, individu absent

@@ -33,8 +33,10 @@ from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
+from .metrics import render as render_metrics
 from .messages import SafetyAlarm, alert_message, now_ms, parse_sensor_payload, reading_message
 from .people import PeopleStore
 from .presence import PresenceLog
@@ -112,12 +114,19 @@ class Service:
         self.auto_alarm = auto_alarm  # types d'alerte qui declenchent buzzer + LED du boitier
         self.lock = threading.Lock()
         self.last_reading_at: float | None = None
+        # compteurs pour GET /metrics (Prometheus / Grafana)
+        self.readings_total = 0
+        self.rejected_total = 0
+        self.commands_total = 0
+        self.alerts_total: dict[tuple[str, str], int] = {}
 
     def ingest_reading(self, node: str, payload: dict) -> bool:
         reading = parse_sensor_payload(payload)
         if reading is None:
+            self.rejected_total += 1
             return False
         with self.lock:
+            self.readings_total += 1
             when = self.store.add_reading(node, reading)
             self.store.touch_status(node, payload.get("ip"))
             self.last_reading_at = time.time()
@@ -129,6 +138,8 @@ class Service:
     def ingest_alert(self, alert: dict) -> int:
         with self.lock:
             alert_id = self.store.add_alert(alert)
+            key = (str(alert.get("type", "?")).upper(), str(alert.get("source", "?")))
+            self.alerts_total[key] = self.alerts_total.get(key, 0) + 1
         self.hub.broadcast(alert_message({**alert, "id": alert_id}))
         if str(alert.get("type", "")).upper() in self.auto_alarm:
             # Alarme physique : le superviseur la coupe depuis le dashboard (boutons Buzzer / LED)
@@ -141,6 +152,7 @@ class Service:
         node = cmd.node_id or self.node_id
         payload = {"actuator": cmd.actuator, "state": cmd.state}
         delivered = bool(self.publish and self.publish(f"sentinel/{node}/commands", payload))
+        self.commands_total += 1
         self.hub.broadcast({"type": "command-ack", "ts": now_ms(), "cmd": payload, "delivered": delivered})
         return delivered
 
@@ -156,7 +168,11 @@ def create_app(service: Service, api_token: str = "", cors_origins: list[str] | 
                mqtt_status=lambda: False, on_startup=None, on_shutdown=None,
                people: PeopleStore | None = None,
                presence: PresenceLog | None = None,
-               vision: VisionController | None = None) -> FastAPI:
+               vision: VisionController | None = None, mosquitto_log=None,
+               dashboard_token: str = "") -> FastAPI:
+    """api_token : machines (IA -> alertes, presence), tous les droits.
+    dashboard_token : operateur du dashboard (individus, vision, buzzer/LED), sans pouvoir emettre
+    d'alertes : il est lisible dans le navigateur, il ne doit donc pas valoir le jeton de l'IA."""
     @asynccontextmanager
     async def lifespan(_app):
         service.hub.loop = asyncio.get_running_loop()
@@ -173,6 +189,16 @@ def create_app(service: Service, api_token: str = "", cors_origins: list[str] | 
     def require_token(authorization: str | None = Header(default=None)):
         if api_token and authorization != f"Bearer {api_token}":
             raise HTTPException(401, "Jeton invalide ou absent")
+
+    def require_operator(authorization: str | None = Header(default=None)):
+        accepted = {f"Bearer {t}" for t in (api_token, dashboard_token) if t}
+        if accepted and authorization not in accepted:
+            raise HTTPException(401, "Jeton operateur invalide ou absent")
+
+    @app.get("/metrics", response_class=PlainTextResponse)
+    def metrics():
+        """Format Prometheus : supervision et MCO dans Grafana (infra/grafana)."""
+        return render_metrics(service, mqtt_status(), vision.running if vision else None, mosquitto_log)
 
     @app.get("/health")
     def health():
@@ -209,7 +235,7 @@ def create_app(service: Service, api_token: str = "", cors_origins: list[str] | 
     def get_devices():
         return service.store.devices()
 
-    @app.post("/api/v1/commands")
+    @app.post("/api/v1/commands", dependencies=[Depends(require_operator)])
     def post_command(cmd: CommandIn):
         return {"delivered": service.command(cmd)}
 
@@ -218,7 +244,7 @@ def create_app(service: Service, api_token: str = "", cors_origins: list[str] | 
         """Liste blanche : individus declares dans le dashboard et empreintes enregistrees en CLI."""
         return people.list() if people else []
 
-    @app.post("/api/v1/people", status_code=201, dependencies=[Depends(require_token)])
+    @app.post("/api/v1/people", status_code=201, dependencies=[Depends(require_operator)])
     def post_person(person: PersonIn):
         if people is None:
             raise HTTPException(503, "Liste des individus indisponible sur ce backend")
@@ -228,7 +254,7 @@ def create_app(service: Service, api_token: str = "", cors_origins: list[str] | 
         except ValueError as exc:
             raise HTTPException(400, str(exc))
 
-    @app.delete("/api/v1/people/{name}", dependencies=[Depends(require_token)])
+    @app.delete("/api/v1/people/{name}", dependencies=[Depends(require_operator)])
     def delete_person(name: str):
         """Droit a l'effacement (RGPD) : retire les donnees et l'empreinte faciale."""
         if people is None or not people.delete(name):
@@ -256,13 +282,13 @@ def create_app(service: Service, api_token: str = "", cors_origins: list[str] | 
         """Etat du script de vision. La webcam est exclusive : l'arreter la libere."""
         return vision.status() if vision else {"running": False, "available": False}
 
-    @app.post("/api/v1/vision/start", dependencies=[Depends(require_token)])
+    @app.post("/api/v1/vision/start", dependencies=[Depends(require_operator)])
     def start_vision():
         if vision is None:
             raise HTTPException(503, "Pilotage de la vision indisponible sur ce backend")
         return vision.start()
 
-    @app.post("/api/v1/vision/stop", dependencies=[Depends(require_token)])
+    @app.post("/api/v1/vision/stop", dependencies=[Depends(require_operator)])
     def stop_vision():
         if vision is None:
             raise HTTPException(503, "Pilotage de la vision indisponible sur ce backend")
