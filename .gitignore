@@ -21,3 +21,7 @@ docs/dossier/poster.html
 # Documents tiers (sujet du workshop, supports de formation) : presents sur le disque,
 # jamais publies dans un depot public.
 docs/reference/*.pdf
+
+# Versions ecartees des livrables : elles restent sur le disque pour comparaison, mais
+# se regenerent depuis docs/dossier/ et n'ont pas leur place dans le depot.
+rendus/non/
