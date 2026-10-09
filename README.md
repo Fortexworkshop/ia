@@ -281,8 +281,6 @@ modele apprend ainsi le niveau reel de la salle et des capteurs.
 
 ---
 
----
-
 # Hors périmètre : module `presence/`
 
 Le dossier `presence/` (contrôle d'accès du personnel : reconnaissance faciale + geste du pouce)
@@ -290,3 +288,20 @@ provient d'une **directive antérieure** au workshop. Il ne fait pas partie du p
 SENTINEL-X — sa documentation est donc dans [`presence/README.md`](presence/README.md).
 
 Il reste utilisé par la vision, qui y lit la liste blanche des personnes autorisées.
+
+---
+
+# Documentation
+
+| Document | Contenu |
+|---|---|
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | branches, commits, PR, ce qui ne doit jamais être commité, rendu |
+| [`DECISIONS.md`](DECISIONS.md) | journal des décisions structurantes : quoi, pourquoi, options écartées |
+| [`docs/IA.md`](docs/IA.md) | vision et maintenance prédictive : méthode, mesures, limites |
+| [`docs/SECURITE.md`](docs/SECURITE.md) | matrice de chiffrement, durcissement, OWASP Top 10 |
+| [`docs/REORGANISATION.md`](docs/REORGANISATION.md) | état et organisation de l'espace de travail |
+| [`dev/dashboard/CHARTE_GRAPHIQUE.md`](dev/dashboard/CHARTE_GRAPHIQUE.md) | charte graphique et accessibilité (ISA-101, RGAA) |
+| [`docs/reference/`](docs/reference/) | sujet du workshop, guide de méthodologie, checklist |
+| [`rendus/`](rendus/) | les livrables : dossier A4, poster A3, deck de soutenance, `.pptx` |
+
+Tout le rendu est régénérable depuis `docs/dossier/` — voir `CONTRIBUTING.md`, § 8.
