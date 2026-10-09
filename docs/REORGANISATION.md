@@ -1,9 +1,8 @@
 # Plan de réorganisation de l'espace de travail
 
-Date : 2026-10-09 · Statut : **à valider** · Périmètre : l'espace de travail entier
+Date : 2026-10-09 · Statut : **réalisé** (voir le journal, § 6) · Périmètre : l'espace de travail entier
 
-Ce document décrit l'état constaté, la cible, et les étapes pour y arriver. Rien n'a été
-exécuté : chaque phase est à valider avant d'être lancée.
+Ce document décrit l'état constaté, la cible, et les étapes pour y arriver.
 
 ---
 
@@ -137,13 +136,13 @@ rm -rf .pytest_cache
 
 Puis :
 
-- [ ] **Ajouter au suivi** `docs/dossier/` : les 5 scripts (`build.py`, `bento.py`,
+- [x] **Ajouter au suivi** `docs/dossier/` : les 5 scripts (`build.py`, `bento.py`,
       `bento2pptx.py`, `bento_check.js`, `render.js`) et `assets/` (4 fichiers, 222 K).
-- [ ] **Ajouter** à `.gitignore` : `docs/reference/*.pdf`.
-- [ ] **Trancher** les deux modifications en attente : `M .gitignore` (à committer) et
+- [x] **Ajouter** à `.gitignore` : `docs/reference/*.pdf`.
+- [x] **Trancher** les deux modifications en attente : `M .gitignore` (à committer) et
       `D CLAUDE.md` (décider où va ce contenu).
-- [ ] **Décider** du sort de `data/` (biométrie) : purger, ou déplacer hors de l'arbre de travail.
-- [ ] **Passe sur le `README.md`** : il mélange le projet avec un module de pointage de présence
+- [x] **Décider** du sort de `data/` (biométrie) : purger, ou déplacer hors de l'arbre de travail.
+- [x] **Passe sur le `README.md`** : il mélange le projet avec un module de pointage de présence
       (`presence/`, ex-directive) ; à réduire au périmètre du sujet.
 
 ### Phase 4 — Figer les livrables
@@ -157,7 +156,7 @@ Dans `Fortex/rendus/`, noms définitifs (≈ 1,7 Mo au total) :
 | `SENTINEL-X-G20.bento.html` (+ `.json`) | deck de soutenance |
 | `Workshop2026-M1-G20-Pres.pptx` | export PowerPoint éditable |
 
-- [ ] Décider : versionner les binaires, ou ne versionner que les **sources** et régénérer.
+- [x] Décider : versionner les binaires, ou ne versionner que les **sources** et régénérer.
 
 ### Phase 5 — Réaligner les trois dépôts
 
@@ -210,3 +209,57 @@ reste annulable.
 - Phases 0 à 1 : 10 min, sans risque si la sauvegarde est faite.
 - Phases 2 à 4 : 30 min, purement local.
 - Phase 5 : la seule qui touche des dépôts distants — à faire à froid.
+
+---
+
+## 6. Journal de l'exécution — 2026-10-09
+
+### Décisions prises
+
+| Point | Décision |
+|---|---|
+| `CLAUDE.md` | **fusionné** dans `.github/copilot-instructions.md`, puis supprimé (les commandes `pnpm run demo`, `pnpm audit` et les précisions sur `sentinel_train.py` / `sentinel_admin.py` manquaient côté Copilot) |
+| `reference/*.pdf` | **exclus du dépôt** et présents sur le disque — documents tiers dans un dépôt public |
+| `data/` | **conservé** : la liste blanche (`faces.npz`, `people.db`) est lue par la vision ; le dossier reste exclu du dépôt |
+| `rendus/` | **versionnés** : c'est la seule copie des livrables, et ils sont reproductibles depuis `docs/dossier/` |
+
+### Déviations par rapport au plan
+
+| Point | Écart | Raison |
+|---|---|---|
+| `.vscode/mcp.json` | **laissé à la racine** | il configure l'espace VS Code, pas le projet ; le déplacer dans `Fortex/` aurait désactivé le serveur MCP Playwright |
+| `docs/dossier/preview/` | non créé | `bento_check.js` écrit ses captures dans un dossier temporaire, rien n'est versionné |
+
+### Ce qui a été fait
+
+1. **Sauvegarde** : `~/sauvegarde-workshop-2026-10-09-1114.tar.gz` (92 Mo) — contient les deux
+   `.git`, les livrables, les modèles et les données.
+2. **Dépôt racine supprimé** (`rm -rf .git`) : le piège qui aurait effacé `dashboard/` du dépôt
+   `dev` n'existe plus. Sa trace est conservée dans le message de ce commit.
+3. **Contenu regroupé** : `Bento/`, `reference/`, `rendus/`, `CLAUDE.md` et `.github/` sont
+   passés dans `Fortex/`. La racine ne contient plus que `Fortex/` et `.vscode/`.
+4. **Dépôt nettoyé** : `docs/dossier/` versionné, `slides.py` et `svg2png.js` retirés (voie
+   abandonnée), `CLAUDE.md` fusionné, README réduit au périmètre du sujet — le module
+   `presence/` a sa propre documentation dans [`presence/README.md`](../presence/README.md).
+5. **Trois commits**, un par phase, sur la branche `dev` :
+   `96627d5` docs(depot) · `297cff7` chore(depot) · `ac6289c` docs(readme).
+6. **Dépôts distants réalignés**, tous en **avance rapide** — aucun `--force` :
+
+   | Dépôt | Opération | Avant → après |
+   |---|---|---|
+   | `dev` | `git subtree push --prefix=dev` | `1517f18` → `67547e6` |
+   | `infra` | `git subtree push --prefix=infra` | `9c10b9f` → `f96300d` |
+   | `ia` | `git push origin dev`, puis PR #2 fusionnée dans `main` | `3fd3d60` → `10d9469` |
+
+7. **Vérifications** : dépôt propre, **aucun secret suivi**, **114 tests passés**, et la chaîne
+   de rendu régénère les quatre livrables (dossier A4 17 p., poster A3, deck Bento, `.pptx`
+   14 slides) — le deck regénéré est **identique octet pour octet** au fichier versionné.
+
+### Reste ouvert
+
+- `main` et `dev` sur `ia` sont désormais au même point : garder les deux, ou travailler
+  directement sur `main` ?
+- La branche `feat/backend-api` (`dev`) et `feat/backend-tls` (`infra`) sont des restes : à
+  supprimer ou à fusionner.
+- `docs/reference/GUIDE_Methodologie_Rigoureuse.md` exige `DECISIONS.md` et `CONTRIBUTING.md` :
+  ils ne sont toujours pas écrits.
