@@ -120,7 +120,8 @@ def main() -> None:
     dash_env = DASHBOARD / ".env"
     if DASHBOARD.exists():
         set_env(dash_env, {"VITE_API_URL": "http://localhost:8080",
-                           "VITE_CAMERA_URL": "http://localhost:8081/video"})
+                           "VITE_CAMERA_URL": "http://localhost:8081/video",
+                           "VITE_GRAFANA_URL": "http://localhost:3001"})
         # Le code operateur n'est PAS ecrit ici : une variable VITE_* est compilee dans le JavaScript,
         # donc lisible par quiconque ouvre la page (OWASP A07). L'operateur le saisit a la connexion.
         set_env(dash_env, {"VITE_DASHBOARD_TOKEN": ""}, overwrite=True)

@@ -302,6 +302,7 @@ Il reste utilisé par la vision, qui y lit la liste blanche des personnes autori
 | [`docs/SECURITE.md`](docs/SECURITE.md) | matrice de chiffrement, durcissement, OWASP Top 10 |
 | [`docs/CHECKLIST.md`](docs/CHECKLIST.md) | le sujet point par point, et où l'on en est |
 | [`docs/dossier/BENTO.md`](docs/dossier/BENTO.md) | authoring Bento, l'outil du deck de soutenance |
+| [`dev/README.md`](dev/README.md) | le dashboard : démarrage, architecture, variables, sécurité |
 | [`dev/dashboard/CHARTE_GRAPHIQUE.md`](dev/dashboard/CHARTE_GRAPHIQUE.md) | charte graphique et accessibilité (ISA-101, RGAA) |
 | [`presence/README.md`](presence/README.md) | reconnaissance faciale et pointage par geste |
 | [`infra/README.md`](infra/README.md) | Mosquitto, PostgreSQL, Prometheus, Grafana |
