@@ -147,11 +147,21 @@ git subtree push --prefix=infra https://github.com/Fortexworkshop/infra.git main
 Depuis `Fortex/`, tout est régénérable :
 
 ```bash
+pip install -r requirements.txt -r docs/dossier/requirements.txt
+
 python docs/dossier/build.py     --group 20 --out rendus   # dossier A4 + poster A3
 python docs/dossier/bento.py     --group 20 --out rendus   # deck Bento
 python docs/dossier/bento2pptx.py --group 20               # export PowerPoint
 node   docs/dossier/bento_check.js rendus/SENTINEL-X-G20.bento.html /tmp/controle
 ```
+
+`build.py` passe par `node docs/dossier/render.js` (Chromium, via Playwright) pour produire les
+PDF.
+
+Les images des rendus vivent dans `docs/dossier/assets/` : **le logo en SVG** (seule source de la
+forme, partagée avec `dev/dashboard/src/components/Icon.jsx`) et **les captures en WebP**. C'est
+`docs/dossier/docassets.py` qui les sert aux trois générateurs ; il reencode une capture en JPEG
+quand le destinataire ne lit pas le WebP (PDF rendu par Chromium, `.pptx`).
 
 `bento_check.js` interroge `window.bento.validate()` et capture chaque slide : **le deck se regarde
 avant d'être livré** — un débordement de texte est invisible dans le JSON et évident à l'écran.

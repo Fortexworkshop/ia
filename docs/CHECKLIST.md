@@ -10,7 +10,7 @@
 
 ## Fait
 
-- [x] API REST et WebSocket, avec `POST /api/v1/alerts` (115 tests)
+- [x] API REST et WebSocket, avec `POST /api/v1/alerts` (114 tests)
 - [x] Dashboard : courbes en temps réel, statut du boîtier, flux webcam, commande buzzer et LED
 - [x] Firmware ESP8266 en C++ (écrit ; jamais exécuté sur du matériel)
 - [x] Boîtier virtuel, même protocole MQTTS que le firmware

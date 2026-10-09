@@ -295,13 +295,18 @@ Il reste utilisé par la vision, qui y lit la liste blanche des personnes autori
 
 | Document | Contenu |
 |---|---|
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | branches, commits, PR, ce qui ne doit jamais être commité, rendu |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | branches, commits, PR, ce qui ne doit jamais être commité, chaîne de rendu |
 | [`DECISIONS.md`](DECISIONS.md) | journal des décisions structurantes : quoi, pourquoi, options écartées |
+| [`docs/ORGANISATION.md`](docs/ORGANISATION.md) | où vit quoi dans l'espace de travail, et pourquoi |
 | [`docs/IA.md`](docs/IA.md) | vision et maintenance prédictive : méthode, mesures, limites |
 | [`docs/SECURITE.md`](docs/SECURITE.md) | matrice de chiffrement, durcissement, OWASP Top 10 |
-| [`docs/REORGANISATION.md`](docs/REORGANISATION.md) | état et organisation de l'espace de travail |
+| [`docs/CHECKLIST.md`](docs/CHECKLIST.md) | le sujet point par point, et où l'on en est |
+| [`docs/dossier/BENTO.md`](docs/dossier/BENTO.md) | authoring Bento, l'outil du deck de soutenance |
 | [`dev/dashboard/CHARTE_GRAPHIQUE.md`](dev/dashboard/CHARTE_GRAPHIQUE.md) | charte graphique et accessibilité (ISA-101, RGAA) |
-| [`docs/reference/`](docs/reference/) | sujet du workshop, guide de méthodologie, checklist |
+| [`presence/README.md`](presence/README.md) | reconnaissance faciale et pointage par geste |
+| [`infra/README.md`](infra/README.md) | Mosquitto, PostgreSQL, Prometheus, Grafana |
+| [`firmware/README.md`](firmware/README.md) | firmware ESP8266 et boîtier |
+| [`docs/reference/`](docs/reference/) | documents tiers : sujet du workshop, guide de méthodologie |
 | [`rendus/`](rendus/) | les livrables : dossier A4, poster A3, deck de soutenance, `.pptx` |
 
 Tout le rendu est régénérable depuis `docs/dossier/` — voir `CONTRIBUTING.md`, § 8.

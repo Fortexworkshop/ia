@@ -248,3 +248,16 @@ Les décisions de rendu et de dépôt sont en fin de document.
   rediffuser nous exposerait sans rien apporter au projet.
 - **Écarté** : les versionner « puisqu'ils sont internes » — `Fortexworkshop/ia` est visible par
   n'importe qui ; un dépôt privé — le rendu doit rester consultable par le jury.
+
+### Les images des rendus ont une seule source
+
+- **Quoi** : le logo n'existe qu'en **SVG** (`docs/dossier/assets/logo.svg`, même trace que
+  `dev/dashboard/src/components/Icon.jsx`) et les captures qu'en **WebP**. `docs/dossier/docassets.py`
+  les sert aux trois générateurs ; le `.pptx` redessine le logo en vectoriel et le PDF reencode la
+  capture en JPEG le temps du rendu.
+- **Pourquoi** : le logo était recopié à l'identique dans trois scripts, et le PNG de 1024 px en
+  était une quatrième copie — donc quatre occasions de diverger. Le WebP divise le poids des
+  captures par deux (176 → 91 Ko), mais Chromium ne sait pas l'embarquer dans un PDF ni PowerPoint
+  le lire : le format est donc choisi **par destination**, pas par source.
+- **Écarté** : garder le PNG pour le `.pptx` — il perd la netteté du vecteur et redevient une
+  copie à maintenir ; garder les JPEG — l'énoncé de la relecture demandait WebP ou SVG.
