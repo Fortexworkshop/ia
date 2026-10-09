@@ -255,11 +255,14 @@ reste annulable.
    de rendu régénère les quatre livrables (dossier A4 17 p., poster A3, deck Bento, `.pptx`
    14 slides) — le deck regénéré est **identique octet pour octet** au fichier versionné.
 
-### Reste ouvert
+### Suites — 2026-10-09
 
-- `main` et `dev` sur `ia` sont désormais au même point : garder les deux, ou travailler
-  directement sur `main` ?
-- La branche `feat/backend-api` (`dev`) et `feat/backend-tls` (`infra`) sont des restes : à
-  supprimer ou à fusionner.
-- `docs/reference/GUIDE_Methodologie_Rigoureuse.md` exige `DECISIONS.md` et `CONTRIBUTING.md` :
-  ils ne sont toujours pas écrits.
+| Point | Suite donnée |
+|---|---|
+| `main` et `dev` au même point | **`dev` est la branche de travail ; `main` ne bouge que par PR.** Les PR #2 et #3 ont aligné `main` une fois, c'est désormais le flux normal. |
+| Branche `livrables` | **PR #4 ouverte** vers `dev` : elle porte le teaser 60 s (`VidDrop.mp4`, 6,5 Mo) et des corrections de documentation introuvables ailleurs. Deux conflits bénins à trancher (`.gitignore`, `CLAUDE.md`). |
+| `feat/backend-api` (`dev`) | **Supprimée** : vérifiée déjà intégrée dans `dev` (`git merge-base --is-ancestor`). |
+| `feat/backend-tls` (`infra`) | **Supprimée** : vérifiée déjà intégrée dans `main`. |
+| `DECISIONS.md`, `CONTRIBUTING.md` | **Rédigés**, avec `.github/pull_request_template.md` demandé par le guide. |
+
+Il ne reste donc plus de point ouvert sur la réorganisation elle-même.
