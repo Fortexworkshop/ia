@@ -204,10 +204,11 @@ def convert(doc: dict, out_path: Path) -> None:
         """
         markup = el.get("markup", "")
         points, circles = docassets.logo_parts()
+        source_stroke, source_accent = docassets.logo_colors()
         stroke = re.search(r'<path\b[^>]*stroke="([^"]+)"', markup)
         accent = re.search(r'<circle\b[^>]*fill="([^"]+)"', markup)
-        stroke = stroke.group(1) if stroke else docassets.LOGO_STROKE
-        accent = accent.group(1) if accent else docassets.LOGO_ACCENT
+        stroke = stroke.group(1) if stroke else source_stroke
+        accent = accent.group(1) if accent else source_accent
 
         k = el["w"] / 32.0                 # le logo est dessine dans un repere 32 x 32
         ox, oy = el["x"], el["y"]

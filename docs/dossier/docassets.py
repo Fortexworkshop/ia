@@ -14,10 +14,8 @@ from pathlib import Path
 ASSETS = Path(__file__).resolve().parent / "assets"
 LOGO_SVG = ASSETS / "logo.svg"
 
-# Couleurs telles qu'ecrites dans logo.svg (charte sombre du dashboard). Les rendus clairs
-# remplacent l'une et l'autre par les couleurs de la charte claire.
-LOGO_STROKE = "#e6e9ee"
-LOGO_ACCENT = "#79aaf7"
+# Les couleurs du logo sont lues dans `assets/logo.svg` : le fichier peut porter la palette claire
+# ou la sombre sans que les generateurs aient a le savoir (`logo_colors`).
 
 # Le trace du logo n'utilise que ces commandes : pas de courbe, donc un parseur suffit.
 _ARG_COUNT = {"M": 2, "L": 2, "H": 1, "V": 1}
@@ -27,14 +25,21 @@ def _logo_source() -> str:
     return LOGO_SVG.read_text(encoding="utf-8")
 
 
-def logo_inner(stroke: str = LOGO_STROKE, accent: str = LOGO_ACCENT) -> str:
-    """Contenu du logo, recoloré, sans balise racine : a inserer dans un <svg> existant."""
+def logo_inner(stroke: str | None = None, accent: str | None = None) -> str:
+    """Contenu du logo, recoloré, sans balise racine : a inserer dans un <svg> existant.
+
+    Les couleurs de depart sont **lues dans le fichier**, pas supposees : recolorer le logo ne
+    depend donc pas de la palette que `logo.svg` porte aujourd'hui. Sans argument, le logo est
+    rendu tel quel.
+    """
+    source_stroke, source_accent = logo_colors()
     raw = _logo_source()
     inner = raw[raw.index(">", raw.index("<svg")) + 1 : raw.rindex("</svg>")].strip()
-    return inner.replace(LOGO_STROKE, stroke).replace(LOGO_ACCENT, accent)
+    inner = inner.replace(source_accent, accent or source_accent)
+    return inner.replace(source_stroke, stroke or source_stroke)
 
 
-def logo_markup(size: float, stroke: str = LOGO_STROKE, accent: str = LOGO_ACCENT,
+def logo_markup(size: float, stroke: str | None = None, accent: str | None = None,
                 x: float | None = None, y: float | None = None) -> str:
     """Element <svg> complet, autonome ou imbrique si x et y sont fournis."""
     pos = "" if x is None else f' x="{x}" y="{y}"'
@@ -93,12 +98,13 @@ def logo_parts() -> tuple[list[tuple[float, float]], list[tuple[float, float, fl
 
 
 def logo_colors() -> tuple[str, str]:
-    """Couleurs du trace et de l'accent, lues dans la source."""
+    """Couleurs du trace et de l'accent, lues dans la source : elles peuvent changer."""
     raw = _logo_source()
     stroke = re.search(r'<path\b[^>]*stroke="([^"]+)"', raw)
     accent = re.search(r'<circle\b[^>]*fill="([^"]+)"', raw)
-    return (stroke.group(1) if stroke else LOGO_STROKE,
-            accent.group(1) if accent else LOGO_ACCENT)
+    if not (stroke and accent):
+        raise ValueError(f"couleurs du logo introuvables dans {LOGO_SVG}")
+    return stroke.group(1), accent.group(1)
 
 
 def asset_uri(name: str, *, as_jpeg: bool = False) -> str:
