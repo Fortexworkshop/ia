@@ -13,3 +13,11 @@ models/*.joblib
 .pytest_cache/
 .vscode/
 dev/dashboard/package-lock.json
+
+# Dossier technique : intermediaires des generateurs (docs/dossier/)
+docs/dossier/dossier.html
+docs/dossier/poster.html
+
+# Documents tiers (sujet du workshop, supports de formation) : presents sur le disque,
+# jamais publies dans un depot public.
+docs/reference/*.pdf
