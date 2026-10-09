@@ -1,0 +1,13 @@
+# Dependances de la chaine de rendu (docs/dossier/), pas du prototype.
+#
+#   pip install -r requirements.txt -r docs/dossier/requirements.txt
+#
+# Les generateurs produisent le dossier, le poster et le deck ; ils tournent sur le poste qui
+# prepare la soutenance, pas sur le PC serveur. `requirements.txt` reste donc le strict
+# necessaire du prototype.
+#
+# Il faut aussi Node.js et Playwright (rendu PDF par Chromium) :
+#   npm i -D playwright       # ou npx playwright install
+#
+Pillow>=10.0        # reencodage des captures (WebP -> JPEG/PNG) et lecture des images
+python-pptx>=1.0    # export .pptx du deck Bento

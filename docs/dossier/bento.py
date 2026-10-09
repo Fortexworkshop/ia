@@ -22,15 +22,17 @@ Produit dans le dossier de sortie :
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 import re
 import subprocess
+import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # docassets.py, voisin de ce script
+import docassets  # noqa: E402  (apres l'ajout du dossier au chemin d'import)
+
 ROOT = Path(__file__).resolve().parent.parent.parent      # Fortex/
-HERE = Path(__file__).resolve().parent
-ASSETS = HERE / "assets"
+ASSETS = docassets.ASSETS
 APP_URL = "https://bento.page/releases/slides/Bento_Slides.bento.html"
 
 FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif"
@@ -51,8 +53,6 @@ WARNING = "#f2b440"        # --warning
 OK = "#5fcf95"             # --ok
 STALE = "#c3a6ff"          # --stale
 
-LOGO_PATH = "M16 2 6 6v4H2l4 6-4 6h4v4l10 4 10-4v-4h4l-4-6 4-6h-4V6L16 2z"
-
 MARGIN, RIGHT = 96, 1184
 WIDTH, HEIGHT = 1280, 720
 
@@ -60,13 +60,12 @@ WIDTH, HEIGHT = 1280, 720
 # --------------------------------------------------------------------------- Fabriques
 
 def logo(eid, x, y, size, stroke=TEXT, accent=ACCENT, morph="logo"):
-    """Le logo FORTEX — bastion en plan autour d'un capteur (ni degrade, ni ombre)."""
-    markup = (
-        f'<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">'
-        f'<path d="{LOGO_PATH}" fill="none" stroke="{stroke}" stroke-width="2" stroke-linejoin="round"/>'
-        f'<circle cx="16" cy="16" r="4" fill="{accent}"/>'
-        f'<circle cx="16" cy="16" r="8" fill="none" stroke="{accent}" stroke-width="1.5" '
-        f'stroke-dasharray="3 3"/></svg>')
+    """Le logo FORTEX — bastion en plan autour d'un capteur (ni degrade, ni ombre).
+
+    Le trace vient de `assets/logo.svg` (`docassets`), meme source que le dossier et le poster.
+    """
+    markup = (f'<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">'
+              f'{docassets.logo_inner(stroke, accent)}</svg>')
     return {"id": eid, "type": "svg", "x": x, "y": y, "w": size, "h": size, "rotation": 0,
             "opacity": 1, "markup": markup, "morphId": morph}
 
@@ -578,15 +577,13 @@ BLOCK = re.compile(
 
 
 def load_assets() -> dict[str, str]:
-    """Captures du projet, embarquees en data URI : le deck reste autonome."""
-    out: dict[str, str] = {}
-    for key, name in (("dashboard-banner", "dashboard-banner.jpg"), ("vision", "vision.jpg"),
-                      ("grafana-banner", "grafana-banner.jpg")):
-        path = ASSETS / name
-        if not path.exists():
-            raise SystemExit(f"capture manquante : {path}")
-        out[key] = "data:image/jpeg;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
-    return out
+    """Captures du projet (WebP), embarquees en data URI : le deck reste autonome."""
+    names = {"dashboard-banner": "dashboard-banner.webp", "vision": "vision.webp",
+             "grafana-banner": "grafana-banner.webp"}
+    for name in names.values():
+        if not (ASSETS / name).exists():
+            raise SystemExit(f"capture manquante : {ASSETS / name}")
+    return {key: docassets.asset_uri(name) for key, name in names.items()}
 
 
 def render_json(doc: dict) -> str:

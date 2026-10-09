@@ -19,11 +19,14 @@ Produit dans le dossier de sortie :
 from __future__ import annotations
 
 import argparse
-import base64
 import re
 import subprocess
+import sys
 from html import escape
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # docassets.py, voisin de ce script
+import docassets  # noqa: E402  (apres l'ajout du dossier au chemin d'import)
 
 ROOT = Path(__file__).resolve().parent.parent.parent          # Fortex/
 DOCS = ROOT / "docs"
@@ -47,18 +50,14 @@ D_BORDER, D_DIVIDER = "#6b7686", "#2a323e"
 D_ACCENT, D_ACCENT_STRONG = "#79aaf7", "#a8c8fb"
 D_CRITICAL, D_WARNING, D_OK, D_STALE = "#ff6b66", "#f2b440", "#5fcf95", "#c3a6ff"
 
-# Logo FORTEX : bastion en plan (le « fort ») autour d'un capteur — dev/dashboard/src/components/Icon.jsx
-LOGO_PATH = "M16 2 6 6v4H2l4 6-4 6h4v4l10 4 10-4v-4h4l-4-6 4-6h-4V6L16 2z"
-
-
 def logo_svg(x: float, y: float, size: float, stroke: str, accent: str) -> str:
-    """Logo FORTEX a la position (x, y), a l'echelle demandee. Geometrie identique a l'application."""
-    k = size / 32
-    return (f'<g transform="translate({x} {y}) scale({k})">'
-            f'<path d="{LOGO_PATH}" fill="none" stroke="{stroke}" stroke-width="2" stroke-linejoin="round"/>'
-            f'<circle cx="16" cy="16" r="4" fill="{accent}"/>'
-            f'<circle cx="16" cy="16" r="8" fill="none" stroke="{accent}" stroke-width="1.5" '
-            f'stroke-dasharray="3 3"/></g>')
+    """Logo FORTEX a la position (x, y), a l'echelle demandee.
+
+    Le trace vient de `assets/logo.svg`, seule source de la forme (elle-meme identique a
+    `dev/dashboard/src/components/Icon.jsx`) : seules les couleurs suivent le theme du document.
+    """
+    return (f'<g transform="translate({x} {y}) scale({size / 32})">'
+            f'{docassets.logo_inner(stroke, accent)}</g>')
 
 
 # --------------------------------------------------------------------------- Markdown
@@ -381,13 +380,16 @@ def wiring_diagram() -> str:
     return svg(1300, 820, "\n".join(parts), "Schéma de câblage du boîtier SENTINEL-X")
 
 
-ASSETS = Path(__file__).resolve().parent / "assets"
+ASSETS = docassets.ASSETS
 
 
 def _asset(name: str) -> str:
-    """Capture du projet en data URI : le poster reste un fichier autonome."""
-    raw = (ASSETS / name).read_bytes()
-    return "data:image/jpeg;base64," + base64.b64encode(raw).decode("ascii")
+    """Capture du projet en data URI : le poster reste un fichier autonome.
+
+    Le poster est rendu en PDF par Chromium, qui n'embarque pas le WebP : la capture est
+    reencodee en JPEG au moment du rendu (voir `docassets.asset_uri`).
+    """
+    return docassets.asset_uri(name, as_jpeg=True)
 
 
 def poster_svg(group: str) -> str:
@@ -465,13 +467,13 @@ def poster_svg(group: str) -> str:
     parts += [
         txt(M, 668, "LE SYSTÈME EN FONCTIONNEMENT", 18, D_ACCENT, 700, spacing=2.4),
         f'<path class="dash" d="M {M} 682 L {R} 682"/>',
-        shot(M, 706, 320, 240, "vision.jpg", "clip-vision"),
+        shot(M, 706, 320, 240, "vision.webp", "clip-vision"),
         txt(M, 970, "Vision — personne reconnue :", 17, D_MUTED),
         txt(M, 994, "nom à l'écran, aucune alarme.", 17, D_MUTED),
         txt(M, 1018, "Inconnu 20 s : buzzer et LED.", 17, D_MUTED),
-        shot(404, 706, 655, 202, "dashboard-banner.jpg", "clip-dash"),
+        shot(404, 706, 655, 202, "dashboard-banner.webp", "clip-dash"),
         txt(404, 930, "Supervision — alarmes à traiter, avec leur origine.", 17, D_MUTED),
-        shot(404, 962, 655, 202, "grafana-banner.jpg", "clip-grafana"),
+        shot(404, 962, 655, 202, "grafana-banner.webp", "clip-grafana"),
         txt(404, 1186, "Exploitation — lecture seule : capteurs et santé du serveur.", 17, D_MUTED),
         txt(M, 1092, "LES TROIS MENACES", 18, D_ACCENT, 700, spacing=2.4),
         f'<path class="dash" d="M {M} 1106 L {M + 320} 1106"/>',

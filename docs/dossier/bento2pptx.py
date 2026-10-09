@@ -8,7 +8,8 @@ Correspondances :
   - 1 px du document (canvas 1280 x 720) = 9525 EMU = 0,75 pt  ->  les positions sont exactes ;
   - `text`  -> zone de texte, avec gras / italique / souligne et alignement ;
   - `shape` rect -> rectangle (ou rectangle arrondi) ; `shape` line -> connecteur a pointe ;
-  - `image` / `svg` -> image (les logos sont pre-rendus dans assets/logo.png) ;
+  - `image` -> capture WebP reencodee en PNG ou JPEG (PowerPoint ne lit pas le WebP) ;
+  - `svg`   -> logo redessine en vectoriel (forme libre + ellipses), depuis `assets/logo.svg` ;
   - `chart` bar -> graphique a barres natif, categorie par categorie.
 
 Usage :
@@ -20,15 +21,19 @@ from __future__ import annotations
 
 import argparse
 import base64
+import io
 import json
 import re
+import subprocess
+import sys
 import tempfile
 from html import unescape
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # docassets.py, voisin de ce script
+import docassets  # noqa: E402  (apres l'ajout du dossier au chemin d'import)
+
 ROOT = Path(__file__).resolve().parent.parent.parent      # Fortex/
-HERE = Path(__file__).resolve().parent
-ASSETS = HERE / "assets"
 
 PX = 9525                    # 1 px (96 dpi) en EMU
 PT = 0.75                    # 1 px en points
@@ -75,10 +80,12 @@ def convert(doc: dict, out_path: Path) -> None:
     from pptx.chart.data import CategoryChartData
     from pptx.dml.color import RGBColor
     from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
+    from pptx.enum.dml import MSO_LINE_DASH_STYLE
     from pptx.enum.shapes import MSO_CONNECTOR, MSO_SHAPE
     from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
     from pptx.oxml.ns import qn
     from pptx.util import Emu, Pt
+    from PIL import Image
 
     W = Emu(doc["size"]["width"] * PX)
     H = Emu(doc["size"]["height"] * PX)
@@ -106,19 +113,23 @@ def convert(doc: dict, out_path: Path) -> None:
     pictures: dict[str, Path] = {}
 
     def picture_file(key: str) -> Path:
-        """Les images du document sont des data URI : on les pose sur disque une seule fois."""
+        """Les images du document sont des data URI : on les pose sur disque une seule fois.
+
+        Les captures du deck sont en WebP ; PowerPoint ne lit pas ce format, on les reencode donc
+        en JPEG (ou en PNG si l'image porte de la transparence).
+        """
         if key in pictures:
             return pictures[key]
         raw = doc.get("assets", {}).get(key)
-        if raw and raw.startswith("data:"):
-            head, payload = raw.split(",", 1)
-            ext = ".png" if "png" in head else ".jpg"
-            path = tmp / f"{key}{ext}"
-            path.write_bytes(base64.b64decode(payload))
-        elif key == "logo":
-            path = ASSETS / "logo.png"
-        else:
+        if not raw or not raw.startswith("data:"):
             raise SystemExit(f"asset inconnu : {key}")
+        image = Image.open(io.BytesIO(base64.b64decode(raw.split(",", 1)[1])))
+        if image.mode in ("RGBA", "LA", "P"):
+            path = tmp / f"{key}.png"
+            image.convert("RGBA").save(path, "PNG", optimize=True)
+        else:
+            path = tmp / f"{key}.jpg"
+            image.convert("RGB").save(path, "JPEG", quality=88, optimize=True)
         pictures[key] = path
         return path
 
@@ -165,7 +176,7 @@ def convert(doc: dict, out_path: Path) -> None:
             shape.line.fill.background()
         shape.shadow.inherit = False
         if el.get("strokeStyle") == "dashed":
-            shape.line.dash_style = 4  # MSO_LINE_DASH_STYLE.DASH
+            shape.line.dash_style = MSO_LINE_DASH_STYLE.DASH
         shape.text_frame.text = ""
         return shape
 
@@ -184,6 +195,52 @@ def convert(doc: dict, out_path: Path) -> None:
         key = key or (el.get("src", "")[len("asset:"):] if el.get("src", "").startswith("asset:") else "")
         return slide.shapes.add_picture(str(picture_file(key)), emu(el["x"]), emu(el["y"]),
                                         emu(el["w"]), emu(el["h"]))
+
+    def add_logo(slide, el):
+        """Logo FORTEX en vectoriel : une forme libre pour le trace, deux ellipses pour le capteur.
+
+        On le redessine plutot que de poser une image : `assets/logo.svg` reste la seule source de
+        la forme, et le vecteur ne se pixellise ni a l'agrandissement ni a l'impression.
+        """
+        markup = el.get("markup", "")
+        points, circles = docassets.logo_parts()
+        stroke = re.search(r'<path\b[^>]*stroke="([^"]+)"', markup)
+        accent = re.search(r'<circle\b[^>]*fill="([^"]+)"', markup)
+        stroke = stroke.group(1) if stroke else docassets.LOGO_STROKE
+        accent = accent.group(1) if accent else docassets.LOGO_ACCENT
+
+        k = el["w"] / 32.0                 # le logo est dessine dans un repere 32 x 32
+        ox, oy = el["x"], el["y"]
+
+        def at(px, py):                    # point du repere du logo -> EMU de la diapositive
+            return emu(ox + px * k), emu(oy + py * k)
+
+        builder = slide.shapes.build_freeform(*at(*points[0]), scale=1)
+        builder.add_line_segments([at(px, py) for px, py in points[1:]], close=True)
+        trace = builder.convert_to_shape()
+        trace.shadow.inherit = False
+        trace.fill.background()
+        trace.line.color.rgb = rgb(stroke)
+        trace.line.width = emu(2 * k)
+
+        for cx, cy, r, filled in circles:
+            oval = slide.shapes.add_shape(MSO_SHAPE.OVAL, *at(cx - r, cy - r),
+                                          emu(2 * r * k), emu(2 * r * k))
+            oval.shadow.inherit = False
+            if filled:
+                oval.fill.solid()
+                oval.fill.fore_color.rgb = rgb(accent)
+                oval.line.fill.background()
+            else:
+                oval.fill.background()
+                oval.line.color.rgb = rgb(accent)
+                oval.line.width = emu(1.5 * k)
+                # PowerPoint n'a que des motifs de tirets imposes (dash = 4 x l'epaisseur) : on
+                # repose le `stroke-dasharray="3 3"` du SVG en pourcentage de l'epaisseur du trait.
+                line = oval.line._get_or_add_ln()
+                custom = line.makeelement(qn("a:custDash"), {})
+                custom.append(line.makeelement(qn("a:ds"), {"d": "200000", "sp": "200000"}))
+                line.append(custom)
 
     def add_chart(slide, el):
         option = el.get("option", {})
@@ -231,7 +288,7 @@ def convert(doc: dict, out_path: Path) -> None:
             elif kind == "image":
                 add_image(slide, el)
             elif kind == "svg":
-                add_image(slide, el, key="logo")
+                add_logo(slide, el)
             elif kind == "chart":
                 add_chart(slide, el)
         if spec.get("notes"):

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="FORTEX">
+  <title>FORTEX</title>
+  <path d="M16 2 6 6v4H2l4 6-4 6h4v4l10 4 10-4v-4h4l-4-6 4-6h-4V6L16 2z" fill="none" stroke="#e6e9ee" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="16" cy="16" r="4" fill="#79aaf7"/>
+  <circle cx="16" cy="16" r="8" fill="none" stroke="#79aaf7" stroke-width="1.5" stroke-dasharray="3 3"/>
+</svg>
